@@ -1,0 +1,86 @@
+### Edit the config file
+
+You will need to have read the INSTALL instructions, in order to have set up
+AWS KMS, the AWS C++ SDK, and the aws-kms-pkcs11 provider.  You will then need
+to edit or create the config.json file, which either needs to be in the same
+directory as you are running this from, or stored in
+$XDG_CONFIG_HOME/.certsquirt/config.json - XDG_CONFIG_HOME is usually set to
+~/.config on Linux systems.
+
+You can leave the root ca file definition blank, and populate it after you have 
+created the initial CA.  Use -debug to output a little more information if you
+want see whats going on.
+
+### Create the initial Root CA
+
+$ ./certsquirt -ca -bootstrap
+
+This will emit a new .pem and .crt formatted certificate.  At this point you
+should edit config.json and add the location of the pem file to point to it,
+e.g. "SigningCert": "/home/certsquirt/PortSwigger CA - 2023.pem".
+
+We will next use this certificate as part of the signing process for the
+sub-ca's we will create next.  The expectation is that you will have *another*
+RSA key in KMS for operating the sub-ca.  Within KMS, head to the console for
+KMS and find the target key, then click on 'Public Key' and copy/download the
+key somewhere for the next step.
+
+This will be issued with a 10 year lifetime.
+
+### Create a Sub CA using an existing RSA Public key (in pem format only)
+
+Using the public key from the new target sub-ca key, run something similar to
+the following to generate the intermediate/sub-ca certificate.  
+
+This will be issues with a 5 year lifetime.
+
+$ ./certsquirt -subca -pubkey externalpublic.pem  -subcaname 'AppleStuff'
+
+### Create a Sub CA and generate an RSA private key at the same time
+
+./certsquirt -subca -genkey -subcaname "WindowsStuff"
+
+Note, this is intended *solely* for import into systems which require it (e.g.
+an intercepting proxy, for example.)  You should not have keys on disk (whether
+protected or not...).  
+
+Keys are wrapped with a passphrase which is output to screen - this is not
+stored anyway, so take note of it.  Keys are wrapped using TripleDES to support
+older systems - you may wish to change this.
+
+### Switch to using the Intermediate CA with AWS KMS Keys (or similar)
+
+At this point, change the pkcs11 provider to target the sub-CA key, to sign
+csrs.
+
+To start with, inspect the csr that a user has given you, or you have generated
+to ensure it is sensible:
+
+$ ./certsquirt -csr test/04/04.csr 
+
+This will output some information, and tell you what the request is for.
+Assuming you are happy to sign it, you should be able to run:
+
+./certsquirt -csr test/04/04.csr -sign 
+
+This will sign the cert, and save both the pem and der/crt to files named after
+the 'Subject' name in the CSR.
+
+Then, inspect the certificate with OpenSSL or similar:
+openssl x509 -in foo.bar.com.pem -text -noout
+
+Take note of the following in this certificate:
+
+* X509v3 Subject Key Identifier is unique to this certificate.
+
+* X509v3 Authority Key Identifier should match X509v3 Subject Key Identifier in
+  the SubCA cert.
+
+* In the SubCA cert the Subject Key should match the Authority Key in the
+  end-user certificate.  
+
+* The Authority Key Identifier should match the Subject Key in the root CA
+  certificate, to complete the chain.
+
+* The root CA certificate should not have an Authority Key Identifier, making
+  it effectively self-signed (and thus untrusted till imported to other systems).

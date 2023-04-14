@@ -1,0 +1,21 @@
+{
+    "Organisation": "PortSwigger",
+    "Country": "UK",
+    "CaName": "PortSwigger CA",
+    "CaVersion": "2023",
+    "OrgUnit": "SecEng",
+    "City": "Knutsford",
+    "County": "Cheshire",
+    "SigningCert": "your_root_ca_cert.pem",
+    "OCSPServer": "",
+    "AwsRoleARN": "arn:aws:iam::{AWS_ACCOUNT_ID}:role/{SOMEROLE}",
+    "AwsMfaSerial": "arn:aws:iam::{AWS_ACCOUNT_ID}:mfa/{SOMEMFA}",
+    "AwsDbTableName": "{SOME_DYNAMO_DB_TABLE}",
+    "AwsRegion": "eu-west-1",
+    "P11Path": "/usr/lib64/pkcs11/aws_kms_pkcs11.so",
+    "P11TokenLabel": "your-testing-rsa-key-as-in-kms-console",
+    "P11Pin": "",
+    "P11Slot": 0,
+    "UseKms": true,
+    "UseYubi": false
+}
