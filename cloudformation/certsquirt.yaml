@@ -1,0 +1,218 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: |
+  This cfn-template creates any required infrastructure for the CertSquirt service.
+  Comment out the KMS keys if you do not need them, you will need to edit any other
+  affected resources as well.
+
+  Note that once this has been run, you will still need to create the users access 
+  keys and create a soft MFA token.
+
+Parameters:
+  BuildTag:
+    Type: String
+    Description: Who or what built this thing
+    Default: CertSquirt
+
+  EnvironmentTag:
+    Type: String
+    Description: The Environment
+    Default: Production
+
+  RootKeyAliasName:
+    Type: String
+    Description: Alias (friendly) name for the root CA KMS key (keep alias/ prefix!)
+    Default: alias/CertSquirt-Root-CA-Key
+
+  SubKeyAliasName:
+    Type: String
+    Description: Alias (friendly) name for the Sub CA KMS key (keep alias/ prefix!)
+    Default: alias/CertSquirt-Sub-CA-Key
+
+Resources:
+  # Comment all this block if not needed
+  CertSquirtRootCaKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: "This is the root CA RSA key used to support the certsquirt service"
+      KeySpec: RSA_4096
+      KeyUsage: SIGN_VERIFY
+      MultiRegion: false
+      KeyPolicy:
+        Version: 2012-10-17
+        Id: CertSquirt-1
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
+            Action: 'kms:*'
+            Resource: '*'
+      Tags:
+        - Key: Name
+          Value: CA-Key-CertSquirt
+        - Key: Environment
+          Value: !Ref EnvironmentTag
+        - Key: BuildTag
+          Value: !Ref BuildTag      
+  # Comment all this block if not needed
+  CertSquirtRootCaKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Ref RootKeyAliasName
+      TargetKeyId: !Ref CertSquirtRootCaKey
+
+  # Comment all this block if not needed
+  CertSquirtSubCaKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: "This is the Sub CA RSA key used to support the certsquirt service"
+      KeySpec: RSA_4096
+      KeyUsage: SIGN_VERIFY
+      MultiRegion: false
+      KeyPolicy:
+        Version: 2012-10-17
+        Id: CertSquirt-1
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
+            Action: 'kms:*'
+            Resource: '*'
+      Tags:
+        - Key: Name
+          Value: Sub-CA-Key-CertSquirt
+        - Key: Environment
+          Value: !Ref EnvironmentTag
+        - Key: BuildTag
+          Value: !Ref BuildTag
+
+  # Comment all this block if not needed 
+  CertSquirtSubCaKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Ref SubKeyAliasName
+      TargetKeyId: !Ref CertSquirtSubCaKey      
+
+  CertSquirtTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        -
+          AttributeName: SerialNumber
+          AttributeType: S
+      KeySchema:
+        -
+          AttributeName: SerialNumber
+          KeyType: HASH
+      DeletionProtectionEnabled: true
+      Tags:
+        - Key: Name
+          Value: CertSquirtDB
+        - Key: Environment
+          Value: !Ref EnvironmentTag
+        - Key: BuildTag
+          Value: !Ref BuildTag
+
+  CertSquirtAccessPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Path: /
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Resource: !GetAtt CertSquirtRole.Arn
+
+  CertSquirtRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
+            Action: 
+              - sts:AssumeRole
+            Condition:
+              Bool:
+                aws:MultiFactorAuthPresent: true
+      Path: /
+      Policies:
+        - PolicyName: CertSquirtAccessPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement: 
+            - Effect: Allow
+              Action: 'dynamodb:*'
+              Resource: !GetAtt CertSquirtTable.Arn
+            # Comment below if not using KMS or are using only one of the keys accordingly
+            - Effect: Allow
+              Action: 
+                - 'kms:DescribeKey'
+                - 'kms:Sign'
+                - 'kms:GetPublicKey'
+                - 'kms:GenerateRandom'
+              Resource: 
+                - !GetAtt CertSquirtRootCaKey.Arn
+                - !GetAtt CertSquirtSubCaKey.Arn
+
+  CertSquirtUser:
+    Type: AWS::IAM::User
+    Properties:
+      ManagedPolicyArns:
+        - !Ref CertSquirtAccessPolicy
+      Path: /
+      Tags:
+        - Key: Name
+          Value: CertSquirt User
+        - Key: Environment
+          Value: !Ref EnvironmentTag
+        - Key: BuildTag
+          Value: !Ref BuildTag
+
+Outputs:
+  CertSquirtTable:
+    Value: !Ref CertSquirtTable
+    Export:
+      Name: CertSquirtTable
+  CertSquirtTableArn:
+    Value: !GetAtt CertSquirtTable.Arn
+    Export:
+      Name: CertSquirtTableArn   
+  CertSquirtUser:
+    Value: !Ref CertSquirtUser
+    Export:
+      Name: CertSquirtUser
+  CertSquirtRootCaKey:
+    Value: !Ref CertSquirtRootCaKey
+    Export:
+      Name: CertSquirtRootCaKey
+  CertSquirtRootCaKeyAlias:
+    Value: CertSquirtRootCaKeyAlias
+    Export:
+      Name: CertSquirtRootCaKeyAlias
+  CertSquirtRootCaKeyArn:
+     Value: !GetAtt CertSquirtRootCaKey.Arn
+     Export:
+       Name: CertSquirtRootCaKeyArn 
+  CertSquirtSubCaKey:
+    Value: !Ref CertSquirtSubCaKey
+    Export:
+      Name: CertSquirtSubCaKey
+  CertSquirtSubCaKeyAlias:
+    Value: CertSquirtSubCaKeyAlias
+    Export:
+      Name: CertSquirtSubCaKeyAlias
+  CertSquirtSubCaKeyArn:
+     Value: !GetAtt CertSquirtSubCaKey.Arn
+     Export:
+       Name: CertSquirtSubCaKeyArn 

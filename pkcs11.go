@@ -48,6 +48,9 @@ func testPkcs11() (ctx *crypto11.Context, err error) {
 	if err != nil {
 		return ctx, err
 	}
+	if len(signers) == 0 {
+		log.Fatalf("FATAL: no signers found")
+	}
 	if flDebug {
 		log.Printf("DEBUG: crypto11.Signers = %#v", signers)
 	}
