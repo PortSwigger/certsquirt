@@ -129,11 +129,11 @@ func createIntermediateCert(ctx crypto11.Context, intpubkey crypto.PublicKey, su
 		SubjectKeyId:          id,
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
 		ExtKeyUsage: []x509.ExtKeyUsage{
-			x509.ExtKeyUsageOCSPSigning,
+			x509.ExtKeyUsageOCSPSigning, x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth,
 		},
 		SignatureAlgorithm: x509.SHA512WithRSA,
 		// According to Andy C maxpathlen only belongs on the root.
-		//MaxPathLen:         1,
+		MaxPathLen: 0,
 		// TODO?
 		//OCSPServer:         []string{"https://ocsp.security.portswigger.internal"},
 	}
@@ -160,6 +160,9 @@ func createIntermediateCert(ctx crypto11.Context, intpubkey crypto.PublicKey, su
 		signer = signers[1]
 	}
 	crtBytes, err := x509.CreateCertificate(rand.Reader, tmpl, cacert, intpubkey, signer)
+	if err != nil {
+		log.Fatalf("FATAL: %v", err)
+	}
 	pemBlock := &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: crtBytes,
@@ -196,6 +199,9 @@ func signCSR(ctx crypto11.Context, csr *x509.CertificateRequest) (crtBytes []byt
 		log.Fatalf("FATAL: Couldn't generate a serial number (%v)", err)
 	}
 	id, err := GenerateSubjectKeyID(csr.PublicKey)
+	if err != nil {
+		log.Fatalf("FATAL: %v", err)
+	}
 	// overwrite some of the values in the cert.
 	var newSubject pkix.Name
 	newSubject.Country = append(newSubject.Country, config.Country)
@@ -248,6 +254,9 @@ func signCSR(ctx crypto11.Context, csr *x509.CertificateRequest) (crtBytes []byt
 		log.Fatalf("FATAL: Cannot open the Parent CA Certificate (%v)", err)
 	}
 
+	if flDebug {
+		log.Printf("DEBUG: attempting to load CA certificate from %v", flCaCertFile)
+	}
 	cacert, err := loadPemCert(flCaCertFile)
 	log.Printf("INFO: Going to attempt to sign certificate using %v", cacert.Subject.CommonName)
 	if err != nil {
@@ -259,9 +268,19 @@ func signCSR(ctx crypto11.Context, csr *x509.CertificateRequest) (crtBytes []byt
 	} else if config.UseYubi {
 		signer = signers[1]
 	}
+	if flDebug {
+		log.Printf("DEBUG: Signer is %#v", signer)
+		log.Printf("DEBUG: Target key (type %T) id is %x", id, signer.Public())
+		signerid, err := GenerateSubjectKeyID(signer.Public)
+		if err != nil {
+			log.Printf("ERROR: Signing public key is whack (%v)", err)
+		}
+		log.Printf("DEBUG: Signer key is %x", signerid)
+	}
 
 	crtBytes, err = x509.CreateCertificate(rand.Reader, tmpl, cacert, csr.PublicKey, signer)
 	if err != nil {
+		log.Printf("ERROR: is the config file pointing to the correct CA certificate file?")
 		log.Fatalf("FATAL: Could not create/sign certificate (%v)", err)
 	}
 	err = addDbRecord(crtBytes)
@@ -324,17 +343,23 @@ func createRootCA(ctx crypto11.Context) bool {
 	} else if config.UseYubi {
 		signer = signers[1]
 	}
-	sig, err := signer.Sign(rand.Reader, hash, crypto.SHA256)
-	if err != nil {
-		log.Fatalf("%v", err)
+	// on the yubikey, we have to reauth evertime we use the ctx - so skip this part
+	if config.UseKms {
+		sig, err := signer.Sign(rand.Reader, hash, crypto.SHA256)
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+
+		err = rsa.VerifyPKCS1v15(signer.Public().(*rsa.PublicKey), crypto.SHA256, hash, sig)
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+		if flDebug {
+			log.Printf(("INFO: successfully passed signing test, proceeding"))
+		}
 	}
 
-	err = rsa.VerifyPKCS1v15(signer.Public().(crypto.PublicKey).(*rsa.PublicKey), crypto.SHA256, hash, sig)
-	if err != nil {
-		log.Fatalf("%v", err)
-	}
-
-	id, err := GenerateSubjectKeyID(signer.Public().(crypto.PublicKey))
+	id, err := GenerateSubjectKeyID(signer.Public())
 	if err != nil {
 		log.Fatalf("fatal: %v", err)
 	}
@@ -364,7 +389,10 @@ func createRootCA(ctx crypto11.Context) bool {
 		//OCSPServer:         []string{"https://ocsp.security.portswigger.internal"},
 	}
 	// chomp chomp.
-	crtBytes, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, signer.Public().(crypto.PublicKey).(*rsa.PublicKey), signer)
+	crtBytes, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, signer.Public().(*rsa.PublicKey), signer)
+	if err != nil {
+		log.Fatalf("FATAL: while trying to sign certificate (%v)", err)
+	}
 	pemBlock := &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: crtBytes,

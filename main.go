@@ -42,13 +42,14 @@ type Config struct {
 	SigningCert    string `json:""`
 	UseKms         bool   `json:""`
 	UseYubi        bool   `json:""`
+	UseSoftHSM     bool   `json:""`
 }
 
 var config Config
 
 // command line flags/arguments
-var flShowVersion, flCA, flSign, flSubCa, flBootstrap, flUsage, flDebug, flInspect, flGenPrivKey bool
-var flKeyfile, flCSR, flPubKey, flCaCertFile, flInterName, flConfig string
+var flShowVersion, flCA, flSign, flSubCa, flBootstrap, flUsage, flDebug, flGenPrivKey bool
+var flCSR, flPubKey, flCaCertFile, flInterName, flConfig string
 
 var keypassword string
 var buildstamp, githash string // For versioning, via go build -v -x -a -ldflags "-X main.buildstamp=`date -u '+%Y-%m-%d_%I:%M:%S%p'` -X main.githash=`git rev-parse HEAD`" || exit'`
@@ -174,6 +175,9 @@ func main() {
 			log.Fatalf("FATAL: Please provide the *signing* CA certificate via the -cacert flag.")
 		}
 		crtBytes, err := signCSR(*ctx, csr)
+		if err != nil {
+			log.Fatalf("FATAL: %v", err)
+		}
 		log.Printf("INFO: Writing pem certificate to %v.pem", csr.Subject.CommonName)
 		err = certToPem(crtBytes, csr.Subject.CommonName+".pem")
 		if err != nil {

@@ -48,6 +48,9 @@ func testPkcs11() (ctx *crypto11.Context, err error) {
 	if err != nil {
 		return ctx, err
 	}
+	if flDebug {
+		log.Printf("DEBUG: crypto11.Signers = %#v", signers)
+	}
 	// test we can use to sign and verify
 	data := []byte("mary had a little lamb")
 	h := sha256.New()
@@ -63,6 +66,8 @@ func testPkcs11() (ctx *crypto11.Context, err error) {
 		signer = signers[0]
 	} else if config.UseYubi {
 		signer = signers[1]
+	} else if config.UseSoftHSM {
+		signer = signers[0]
 	}
 	// so this is a tricky one - KMS will let us keep our connection to do multiple operations,
 	// so we can keep spending out ticket to ride... But the Yubikey forces a relogin after each
@@ -77,7 +82,7 @@ func testPkcs11() (ctx *crypto11.Context, err error) {
 		if flDebug {
 			log.Printf("DEBUG: Success signing test data using the pkcs11 provider")
 		}
-		err = rsa.VerifyPKCS1v15(signer.Public().(crypto.PublicKey).(*rsa.PublicKey), crypto.SHA256, hash, sig)
+		err = rsa.VerifyPKCS1v15(signer.Public().(*rsa.PublicKey), crypto.SHA256, hash, sig)
 		if err != nil {
 			fmt.Println(err)
 			return ctx, err

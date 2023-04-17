@@ -80,6 +80,9 @@ func addDbRecord(crtBytes []byte) error {
 	}
 	dyndb = dynamodb.New(sess)
 	av, err := dynamodbattribute.MarshalMap(record)
+	if err != nil {
+		return err
+	}
 
 	input := &dynamodb.PutItemInput{
 		Item:      av,
