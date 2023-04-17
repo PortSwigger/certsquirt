@@ -14,7 +14,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
-	"golang.org/x/crypto/ssh/terminal"
+
+	"golang.org/x/term"
 )
 
 // TakeRole gets temporary security credentials to access resources
@@ -56,14 +57,14 @@ func credentials() (string, string, string) {
 	username, _ := reader.ReadString('\n')
 
 	fmt.Print("Enter Access Key Secret: ")
-	bytePassword, err := terminal.ReadPassword(0)
+	bytePassword, err := term.ReadPassword(0)
 	if err != nil {
 		log.Printf("ERROR: how the hell did you break that? (%v)", err)
 		os.Exit(1)
 	}
 	fmt.Println()
 	fmt.Printf("Enter MFA Code: ")
-	byteMfaCode, err := terminal.ReadPassword(0)
+	byteMfaCode, err := term.ReadPassword(0)
 	if err != nil {
 		log.Printf("ERROR: how the hell did you break that? (%v)", err)
 		os.Exit(1)
