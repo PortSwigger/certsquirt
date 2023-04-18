@@ -1,10 +1,10 @@
 # A golang PKI in less than 1000 lines of code.
 
+# Caveats
+
+Although not an issue with this solution per se, the `aws-kms-pkcs11` provider does not build easily on MacOS.  You are advised to use a Linux machine/VM to run this solution if you wish to use KMS.  If you are using Yubikeys, this restriction doesn't apply.
+
 # Installation
-
-This is a little complex.  
-
-Apologies.
 
 While there are native API's to talk to KMS directly, one of the goals of this project was to make things configurable, so that you are not tied to a singly crypto provider.  To that end, we chose to use [pkcs11](https://en.wikipedia.org/wiki/PKCS_11) as a crypto provider.  This means you should theoretically be able to talk to ['real world' HSM's](https://github.com/ThalesIgnite/crypto11#testing-with-thales-luna-hsm), [AWS CloudHSM](https://docs.aws.amazon.com/cloudhsm/latest/userguide/pkcs11-library.html), [YubiKeys](https://developers.yubico.com/yubico-piv-tool/YKCS11/) , et al.  
 
@@ -14,85 +14,28 @@ However, this extensibility does come at a price - a little complexity to get st
 
 To get you up and running, we will use AWS KMS as it's insanely cheap - $1 per month per key.  In this model, you will need 2 keys, versus the cost of AWS Private CA ($0.75 per certificate) and, *mostly*, with all the security features that provides.
 
-#
 ## AWS
 
 It would be far superior from a rigour perspective if this was a new AWS account, with nothing in it other than secured root user access, using hardware MFA (yubikey, etc).
 
 ### Cloudformation.
-In Progress.  Watch this space.
 
+In the cloudformation subdirectory is a template which will create the following:
 
+* A CA root key in KMS (RSA 4096)
+* A Sub CA key in KMS (RSA 4096)
+* A DynamoDB Table for the service
+* An IAM access role to be assumed via the app which has access to keys and DB
+* A user which is allowed to assume the role when authentication uses MFA.
 
-### AWS IAM Role
+Once executed, you need to find the user and create an access key, and a software based MFA token.  The script outputs the other variables you should need when creating the config.json file, to be copy/pasta to it.
 
-These permission policies attached to the role work, but could be scoped tighter:
-
-* AmazonDynamoDBFullAccess
-* AWSKeyManagementServicePowerUser
-
-For 'Trust Relationships', ensure that MFA is forced to be used when our IAM user assumes the role:
-
-```
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Principal": {
-                "AWS": "arn:aws:iam::{AWS_ACCOUNT_NUMBER}:root"
-            },
-            "Action": "sts:AssumeRole",
-            "Condition": {
-                "Bool": {
-                    "aws:MultiFactorAuthPresent": "true"
-                }
-            }
-        }
-    ]
-}
-```
-
-Next, we need a user.
-
-### AWS IAM User
-
-Create a user, with the following as a custom permission policy.
-
-```
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": "sts:AssumeRole",
-            "Resource": "arn:aws:iam::{AWS_ACCOUNT_NUMBER}:role/{ROLE_CREATED_ABOVE}"
-        }
-    ]
-}
-```
-
-This effectively creates a user with absolutely no permissions, aside from being able to assume the role above using MFA/TOTP based authentication.  
-
-With this user created, head over to 'Security Credentials' on the user info page and generate some access keys to be used to authenticate to the API's, and 'Assign MFA Device', following the instructions in the page.
-
-* *Tip*: You can hardcode these credentials into the binary, in case you are testing as generating mfa codes can be annoying.  To do this, set the following variables within awsauth.go:
+* *Tip*: You can hardcode these credentials into the config.json, in case you are testing as generating mfa codes can be annoying.  To do this, set the following variables within config.json:
     ```
-    var (
-        awsAccessKey = ""
-        awsSecretKey = ""
-        awsTotpKey   = ""
-    )
+    "AwsAccessKey": "AKIAXXXXXXXXXXXXXXXX",
+    "AwsSecretKey": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+    "AwsTotpSecret": "BASE32SECRET",
 * If these are set, we will then generate TOTP codes for you at runtime.  You may see errors when doing this though, as you can only use an MFA code precisely once every 30 seconds.
-
-### AWS KMS Keys
-
-At this point, with the user and role and access credentials in place, we can generate the KMS keys.
-
-* You will want to create an 'Asymmetric' Key, with usage 'Sign and Verify', of type RSA_4096
-* The Key Administrator should not be the user above, but a different user or simply left blank.
-* The Key Users should be set to the role you created above.
-* Alternatively you can delegate access usage to this key to another AWS account.
 
 #
 # Software Prerequisites

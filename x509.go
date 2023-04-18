@@ -128,6 +128,9 @@ func createIntermediateCert(ctx crypto11.Context, intpubkey crypto.PublicKey, su
 		NotAfter:              time.Now().AddDate(0, 0, 1825).UTC(),
 		SubjectKeyId:          id,
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+
+		// you may want to undefine this - if you do any end user certs signed by this cert will be scoped
+		// to only those usages below.  Of course, this may be what you wish to achieve.
 		ExtKeyUsage: []x509.ExtKeyUsage{
 			x509.ExtKeyUsageOCSPSigning, x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth,
 		},
