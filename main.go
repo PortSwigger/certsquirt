@@ -15,7 +15,6 @@ import (
 
 	_ "embed"
 
-	"github.com/ThalesIgnite/crypto11"
 	"github.com/sethvargo/go-password/password"
 )
 
@@ -40,9 +39,6 @@ type Config struct {
 	Pin            string `json:"P11Pin"`
 	SlotNumber     int    `json:"P11Slot"`
 	SigningCert    string `json:""`
-	UseKms         bool   `json:""`
-	UseYubi        bool   `json:""`
-	UseSoftHSM     bool   `json:""`
 }
 
 var config Config
@@ -118,7 +114,7 @@ func main() {
 		log.Printf("DEBUG: Config is %#v (config file used is %v)", config, confFile)
 	}
 	if flCaCertFile == "" && config.SigningCert != "" {
-		// set flCaCertFile to use the defined file
+		// set flCaCertFile to use the defined file in the json config
 		flCaCertFile = config.SigningCert
 	}
 
@@ -144,10 +140,10 @@ func main() {
 		usage()
 		os.Exit(0)
 	}
-	var ctx *crypto11.Context
+
 	// As we use DynamoDB, we will always need to auth to AWS to pop records there.
-	// Everything below here will require our pkcs11 provider
-	creds := assumeRole() // note auth.go contains hardcoded creds and requires changes.
+	creds := assumeRole()
+
 	// the pkcs11 provider knows nothing about our credentials, indeed it is just a
 	// library on disk - as a result we need to set our environment variables here,
 	// so that future calls will use our new creds.
@@ -157,13 +153,7 @@ func main() {
 	os.Setenv("AWS_SESSION_TOKEN", *creds.SessionToken)
 	os.Setenv("AWS_DEFAULT_REGION", "eu-west-1")
 	// TODO AWS_ROLE_SESSION_NAME?
-	ctx, err = testPkcs11()
-	if err != nil {
-		log.Printf("FATAL: Could not not configure p11 - did you create or specify the configuration file, ")
-		log.Printf("FATAL: as detailed at https://pkg.go.dev/github.com/ThalesIgnite/crypto11#ConfigureFromFile ?")
-		log.Fatalf("FATAL: %v", err)
-		log.Printf("FATAL: *** Check if the configured pkcs11 library (%v) is accessible?", config.Path)
-	}
+
 	// most likely we're being used to simply sign a csr, so start there...
 	if flSign && flCSR != "" {
 		// func signCSR(ctx crypto11.Context, csr *x509.CertificateRequest) (crtBytes []byte, err error)
@@ -174,7 +164,19 @@ func main() {
 		if flCaCertFile == "" {
 			log.Fatalf("FATAL: Please provide the *signing* CA certificate via the -cacert flag.")
 		}
-		crtBytes, err := signCSR(*ctx, csr)
+
+		signingCert, err := loadPemCert(flCaCertFile)
+		if err != nil {
+			log.Fatalf("FATAL: Couldn't load CA x509 certificate from %v", flCaCertFile)
+		}
+		signer, err := initPkcs11(signingCert.PublicKey.(*rsa.PublicKey))
+		if err != nil {
+			log.Printf("FATAL: Could not not configure p11 - did you create or specify the configuration file, ")
+			log.Printf("FATAL: as detailed at https://pkg.go.dev/github.com/ThalesIgnite/crypto11#ConfigureFromFile ?")
+			log.Fatalf("FATAL: %v", err)
+			log.Printf("FATAL: *** Check if the configured pkcs11 library (%v) is accessible?", config.Path)
+		}
+		crtBytes, err := signCSR(signer, csr)
 		if err != nil {
 			log.Fatalf("FATAL: %v", err)
 		}
@@ -190,7 +192,11 @@ func main() {
 		}
 		os.Exit(0)
 	}
-	if flCA && flBootstrap {
+	// catch a missing public key
+	if flCA && flBootstrap && flPubKey == "" {
+		log.Fatalf("FATAL: you need to pass in a public key for this operation via -pubkey")
+	}
+	if flCA && flBootstrap && flPubKey != "" {
 		log.Printf("***************** WARNING ***************")
 		log.Printf("****  DO NOT PROCEED UNLESS YOU ARE  ****")
 		log.Printf("*** ABSOLUTELY SURE YOU WANT TO MINT ****")
@@ -217,8 +223,18 @@ func main() {
 			log.Printf("INCORRECT CHALLENGE RESPONSE, BAILING OUT")
 			os.Exit(10)
 		}
+		// flPubKey should point to a file on disk we can consume to grab out the rsa public key, to allow us to find the
+		// corresponding signer...
+		pubkey, err := loadPubKey(flPubKey)
+		if err != nil {
+			log.Fatalf("FATAL: %v", err)
+		}
 
-		ok := createRootCA(*ctx)
+		signer, err := initPkcs11(pubkey.(*rsa.PublicKey))
+		if err != nil {
+			log.Fatalf("FATAL: %v", err)
+		}
+		ok := createRootCA(signer)
 		if ok {
 			log.Printf("OK: DONE!")
 			os.Exit(0)
@@ -237,7 +253,9 @@ func main() {
 		if flDebug {
 			log.Printf("DEBUG: Key loaded successfully from %v, and it's a %T key", flPubKey, pubkey)
 		}
-		_, ok := createIntermediateCert(*ctx, pubkey, flInterName)
+
+		signer, err := initPkcs11(pubkey.(*rsa.PublicKey))
+		_, ok := createIntermediateCert(signer, pubkey, flInterName)
 		if !ok {
 			log.Fatalf("FATAL: When creating certificate (%v)", err)
 		}
@@ -252,8 +270,19 @@ func main() {
 		if err != nil {
 			log.Fatalf("FATAL: Could not generate rsa private key (%v)", err)
 		}
-		pubkey := key.Public()
-		caName, ok := createIntermediateCert(*ctx, pubkey, flInterName)
+		// this is our newly generated public key
+		newpubkey := key.Public()
+		// this is our signing public key
+		pubkey, err := loadPubKey(flPubKey)
+		if err != nil {
+			log.Fatalf("FATAL: %v", err)
+		}
+
+		signer, err := initPkcs11(pubkey.(*rsa.PublicKey))
+		if err != nil {
+			log.Fatalf("FATAL: %v", err)
+		}
+		caName, ok := createIntermediateCert(signer, newpubkey, flInterName)
 		if !ok {
 			log.Fatalf("FATAL: When creating certificate (%v)", err)
 		}
@@ -294,3 +323,4 @@ func main() {
 	}
 	log.Printf("INFO: Clean exit.")
 }
+

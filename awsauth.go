@@ -85,10 +85,8 @@ func assumeRole() (creds sts.Credentials) {
 		//awsAccessKey, awsSecretKey, mfacode = credentials()
 		config.AwsAccessKey, config.AwsSecretKey, mfacode = credentials()
 	} else {
-		if config.UseKms {
-			// User wants to use kms, perhaps we should Fatalf here.
-			log.Printf("WARNING: YOU ARE USING HARDCODED CREDENTIALS - THIS IS EXTREMELY DANGEROUS")
-		}
+		// User wants to use kms, perhaps we should Fatalf here.
+		log.Printf("WARNING: YOU ARE USING HARDCODED CREDENTIALS - THIS IS EXTREMELY DANGEROUS")
 	}
 	// set them in our env so that they are used below, overwritting anything that already
 	// exists

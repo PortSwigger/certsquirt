@@ -11,7 +11,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"encoding/pem"
-	"fmt"
 	"log"
 	"math/big"
 	"os"
@@ -95,9 +94,8 @@ func newSerialNumber() (*big.Int, error) {
 	return rand.Int(rand.Reader, serialNumberLimit)
 }
 
-func createIntermediateCert(ctx crypto11.Context, intpubkey crypto.PublicKey, subjectname string) (caName string, ok bool) {
+func createIntermediateCert(signer crypto11.Signer, intpubkey crypto.PublicKey, subjectname string) (caName string, ok bool) {
 	// need to read in pubkey
-
 	id, err := GenerateSubjectKeyID(intpubkey)
 	if err != nil {
 		log.Fatalf("FATAL: %v", err)
@@ -140,10 +138,6 @@ func createIntermediateCert(ctx crypto11.Context, intpubkey crypto.PublicKey, su
 		// TODO?
 		//OCSPServer:         []string{"https://ocsp.security.portswigger.internal"},
 	}
-	signers, err := ctx.FindAllKeyPairs()
-	if err != nil {
-		log.Fatalf("FATAL: %v", err)
-	}
 	// we need the upstream cert
 	if _, err := os.Stat(flCaCertFile); os.IsNotExist(err) {
 		// path/to/whatever does not exist
@@ -156,12 +150,6 @@ func createIntermediateCert(ctx crypto11.Context, intpubkey crypto.PublicKey, su
 		log.Fatalf("FATAL: Cannot read CA Cert from %v (%v)", flCaCertFile, err)
 	}
 
-	var signer crypto11.Signer
-	if config.UseKms {
-		signer = signers[0]
-	} else if config.UseYubi {
-		signer = signers[1]
-	}
 	crtBytes, err := x509.CreateCertificate(rand.Reader, tmpl, cacert, intpubkey, signer)
 	if err != nil {
 		log.Fatalf("FATAL: %v", err)
@@ -196,7 +184,7 @@ func createIntermediateCert(ctx crypto11.Context, intpubkey crypto.PublicKey, su
 	return name.CommonName, true
 }
 
-func signCSR(ctx crypto11.Context, csr *x509.CertificateRequest) (crtBytes []byte, err error) {
+func signCSR(signer crypto11.Signer, csr *x509.CertificateRequest) (crtBytes []byte, err error) {
 	serialNumber, err := newSerialNumber()
 	if err != nil {
 		log.Fatalf("FATAL: Couldn't generate a serial number (%v)", err)
@@ -243,14 +231,6 @@ func signCSR(ctx crypto11.Context, csr *x509.CertificateRequest) (crtBytes []byt
 	}
 	tmpl.ExtraExtensions = []pkix.Extension{bar, foo}
 
-	signers, err := ctx.FindAllKeyPairs()
-	if err != nil {
-		fmt.Println(err)
-		return crtBytes, err
-	}
-	if flDebug {
-		log.Printf("DEBUG: Signers is: %#v", signers)
-	}
 	// we need the upstream cert
 	if _, err := os.Stat(flCaCertFile); os.IsNotExist(err) {
 		// path/to/whatever does not exist
@@ -265,12 +245,7 @@ func signCSR(ctx crypto11.Context, csr *x509.CertificateRequest) (crtBytes []byt
 	if err != nil {
 		log.Fatalf("FATAL: Cannot read CA Cert from %v (%v)", flCaCertFile, err)
 	}
-	var signer crypto11.Signer
-	if config.UseKms {
-		signer = signers[0]
-	} else if config.UseYubi {
-		signer = signers[1]
-	}
+
 	if flDebug {
 		log.Printf("DEBUG: Signer is %#v", signer)
 		log.Printf("DEBUG: Target key (type %T) id is %x", id, signer.Public())
@@ -327,41 +302,7 @@ func prettyPrintCSR(csr *x509.CertificateRequest) {
 
 // This function call should be executed precisely once, to generate the root CA.
 // This is effectively creating a 'self-signed' cert.
-func createRootCA(ctx crypto11.Context) bool {
-	signers, err := ctx.FindAllKeyPairs()
-	if err != nil {
-		log.Fatalf("%v", err)
-	}
-	// test we can use to sign and verify
-	data := []byte("mary had a little lamb")
-	h := sha256.New()
-	_, err = h.Write(data)
-	if err != nil {
-		log.Fatalf("%v", err)
-	}
-	hash := h.Sum([]byte{})
-	var signer crypto11.Signer
-	if config.UseKms {
-		signer = signers[0]
-	} else if config.UseYubi {
-		signer = signers[1]
-	}
-	// on the yubikey, we have to reauth evertime we use the ctx - so skip this part
-	if config.UseKms {
-		sig, err := signer.Sign(rand.Reader, hash, crypto.SHA256)
-		if err != nil {
-			log.Fatalf("%v", err)
-		}
-
-		err = rsa.VerifyPKCS1v15(signer.Public().(*rsa.PublicKey), crypto.SHA256, hash, sig)
-		if err != nil {
-			log.Fatalf("%v", err)
-		}
-		if flDebug {
-			log.Printf(("INFO: successfully passed signing test, proceeding"))
-		}
-	}
-
+func createRootCA(signer crypto11.Signer) bool {
 	id, err := GenerateSubjectKeyID(signer.Public())
 	if err != nil {
 		log.Fatalf("fatal: %v", err)
