@@ -12,27 +12,29 @@ func initPkcs11(pubkey *rsa.PublicKey) (signer crypto11.Signer, err error) {
 	if flDebug {
 		log.Printf("DEBUG: init called with pubkey of type %T", pubkey)
 	}
-	// depending on AWS-KMS or YubiKey we need to pass these in differently...
-	// var p11Config crypto11.Config
-
-	// if config.UseKms {
-	// 	if flDebug {
-	// 		log.Printf("DEBUG: Attempting to configure pkcs11 with AWS KMS")
-	// 	}
-	// 	p11Config = crypto11.Config{
-	// 		// if you're looking here, look here: https://pkg.go.dev/github.com/ThalesIgnite/crypto11#Config
-	// 		Path:       config.Path,
-	// 		TokenLabel: config.TokenLabel,
-	// 	}
-	// } else if config.UseYubi {
-	// 	if flDebug {
-	// 		log.Printf("DEBUG: Attempting to configure pkcs11 with Yubikey")
-	// 	}
-	p11Config := crypto11.Config{
-		Path: config.Path,
-		Pin:  config.Pin,
-		//SlotNumber: &config.SlotNumber,
-		TokenLabel: config.TokenLabel,
+	// depending on the pkcs11 provider we need to pass these in differently.
+	// For KMS and some others , we need to find the key via the Token Label,
+	// but the YubiKey and others, we need to locate the token via the slot.
+	//
+	// crypto11.Config
+	var p11Config crypto11.Config
+	if flDebug {
+		log.Printf("Attempting to configure provider with these values: %#v,%#v, %#v, %#v", config.Path, config.Pin, config.TokenLabel, config.SlotNumber)
+	}
+	if config.TokenLabel != "" {
+		p11Config = crypto11.Config{
+			Path: config.Path,
+			Pin:  config.Pin,
+			//SlotNumber: &config.SlotNumber,
+			TokenLabel: config.TokenLabel,
+		}
+	} else {
+		p11Config = crypto11.Config{
+			Path:       config.Path,
+			Pin:        config.Pin,
+			SlotNumber: &config.SlotNumber,
+			//TokenLabel: config.TokenLabel,
+		}
 	}
 
 	if flDebug {
@@ -41,6 +43,9 @@ func initPkcs11(pubkey *rsa.PublicKey) (signer crypto11.Signer, err error) {
 	ctx, err := crypto11.Configure(&p11Config)
 	if err != nil {
 		return signer, err
+	}
+	if flDebug {
+		log.Printf("DEBUG: crypto11.Context is : %#v", ctx)
 	}
 	signers, err := ctx.FindAllKeyPairs()
 	if err != nil {

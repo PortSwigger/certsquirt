@@ -1,4 +1,4 @@
-module portswigger.net/certsquirt
+module github.com/PortSwigger/certsquirt
 
 go 1.20
 

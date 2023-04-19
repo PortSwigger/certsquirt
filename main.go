@@ -229,10 +229,18 @@ func main() {
 		if err != nil {
 			log.Fatalf("FATAL: %v", err)
 		}
+		if flDebug {
+			log.Printf("DEBUG: Will attempt to load matching private key of type %T for %#v", pubkey, pubkey)
+		}
 
 		signer, err := initPkcs11(pubkey.(*rsa.PublicKey))
 		if err != nil {
-			log.Fatalf("FATAL: %v", err)
+			log.Printf("ERROR: %v", err)
+			log.Printf("INFO: This could be down to several reasons, incorrect pin, wrong slot specified, pkcs11.so library incorrectly set,")
+			log.Printf("INFO: the key doesn't exist, etc.  If using KMS try setting AWS_KMS_PKCS11_DEBUG=1 in the environment.  ")
+			log.Printf("INFO: For the Yubikey, try setting YKCS11_DBG=9 (full debug) or YKCS11_DBG=1(minimal debug).  Other libraries")
+			log.Printf("INFO: will likely have similar debugging features.")
+			log.Fatalf("FATAL: cannot continue sorry")
 		}
 		ok := createRootCA(signer)
 		if ok {
@@ -246,16 +254,16 @@ func main() {
 		if flInterName == "" {
 			log.Fatalf("ERROR: You need to pass a 'friendly' name for this CA via the -subcaname option (e.g. -subcaname 'Apple TV Devices') ")
 		}
-		pubkey, err := loadPubKey(flPubKey)
-		if err != nil {
-			log.Fatalf("FATAL: Can't load key (%v)", err)
-		}
-		if flDebug {
-			log.Printf("DEBUG: Key loaded successfully from %v, and it's a %T key", flPubKey, pubkey)
+		if flCaCertFile == "" {
+			log.Fatalf("FATAL: Please provide the *signing* CA certificate via the -cacert flag.")
 		}
 
-		signer, err := initPkcs11(pubkey.(*rsa.PublicKey))
-		_, ok := createIntermediateCert(signer, pubkey, flInterName)
+		signingCert, err := loadPemCert(flCaCertFile)
+		if err != nil {
+			log.Fatalf("FATAL: Couldn't load CA x509 certificate from %v", flCaCertFile)
+		}
+		signer, err := initPkcs11(signingCert.PublicKey.(*rsa.PublicKey))
+		_, ok := createIntermediateCert(signer, signingCert.PublicKey, flInterName)
 		if !ok {
 			log.Fatalf("FATAL: When creating certificate (%v)", err)
 		}
@@ -323,4 +331,3 @@ func main() {
 	}
 	log.Printf("INFO: Clean exit.")
 }
-
