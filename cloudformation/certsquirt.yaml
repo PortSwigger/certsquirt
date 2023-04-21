@@ -87,7 +87,6 @@ Resources:
           Value: !Ref EnvironmentTag
         - Key: BuildTag
           Value: !Ref BuildTag
-
   # Comment all this block if not needed 
   CertSquirtSubCaKeyAlias:
     Type: AWS::KMS::Alias
@@ -154,6 +153,11 @@ Resources:
             - Effect: Allow
               Action: 'dynamodb:*'
               Resource: !GetAtt CertSquirtTable.Arn
+            # Not strictly needed but allows aws-kms-pkcs11 to list keys for debugging
+            - Effect: Allow 
+              Action:
+                - 'kms:ListKeys'
+              Resource: '*'
             # Comment below if not using KMS or are using only one of the keys accordingly
             - Effect: Allow
               Action: 

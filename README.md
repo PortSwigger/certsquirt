@@ -2,7 +2,7 @@
 
 # Introduction
 
-This repository contains a solution to create and manage a small-scale PKI for a small or medium sized enterprise, which is managed securely with keys being held securely.  This is an easier and far more solution to drive than something like easy-rsa, and is far simpler to configure than other PKI software solutions.
+This repository contains a solution to create and manage a small-scale PKI for a small or medium sized enterprise, which is managed securely with keys being managed by a PKCS11 provider.  This is an easier solution to drive than something like easy-rsa, is more secure, and is far simpler to configure than other PKI software solutions.
 
 While there are native API's to talk to crypto providers, for example KMS,  directly one of the goals of this project was to make things configurable, so that you are not tied to a single crypto provider.  To that end, we chose to use [pkcs11](https://en.wikipedia.org/wiki/PKCS_11) as a crypto provider.  This means you should theoretically be able to talk to ['real world' HSM's](https://github.com/ThalesIgnite/crypto11#testing-with-thales-luna-hsm), [AWS CloudHSM](https://docs.aws.amazon.com/cloudhsm/latest/userguide/pkcs11-library.html), [YubiKeys](https://developers.yubico.com/yubico-piv-tool/YKCS11/) , et al.  
 
@@ -33,7 +33,7 @@ You will need to edit the config file to (at a bare minimum) configure the follo
 * P11Pin (Add the pin for a Yubikey, leave as "" for AWS KMS)
 * P11Slot (Leave as 0 for both KMS and Yubikeys)
 
-If using KMS, you will need to install and configure [aws-kms-pkcs11](#jack-of-most-trades---aws-kms-pkcs11).  The P11TokenLabel corresponds to the label defined in the aws-kms-pkcs11 [configuration file](https://github.com/JackOfMostTrades/aws-kms-pkcs11#configuration) .  You will need to have this configured and working before you can proceed.
+If using KMS, you will need to install and configure [aws-kms-pkcs11](#jack-of-most-trades---aws-kms-pkcs11).  The P11TokenLabel corresponds to the label defined in the aws-kms-pkcs11 [configuration file](https://github.com/JackOfMostTrades/aws-kms-pkcs11#configuration) .  You will need to have this configured and working before you can proceed.  You can ignore the part around 'AWS Credentials' - we'll handle that for you.
 
 # Installation
 
@@ -45,9 +45,45 @@ At a minimum, you will need to create a DynamoDB table within AWS.  The  [cloudf
 
 # Execution
 
+## SoftHSM
 
+`export SOFTHSM2_CONF=./softhsm2.conf`
+
+`mkdir ./softhsm-tokens`
+
+`softhsm2-util --show-slots`
+
+```
+Available slots:
+Slot 0
+    Slot info:
+        Description:      SoftHSM slot ID 0x0                                             
+        Manufacturer ID:  SoftHSM project                 
+        Hardware version: 2.6
+        Firmware version: 2.6
+        Token present:    yes
+    Token info:
+        Manufacturer ID:  SoftHSM project                 
+        Model:            SoftHSM v2      
+        Hardware version: 2.6
+        Firmware version: 2.6
+        Serial number:                    
+        Initialized:      no
+        User PIN init.:   no
+        Label:                                            
+```
+then
+
+`softhsm2-util --init-token --slot 0 --label certsquirt`
+
+`pkcs11-tool --module /opt/homebrew/opt/softhsm/lib/softhsm/libsofthsm2.so --pin 123456  --keypairgen  --key-type rsa:2048 --label 'root-ca-key'`
+
+`pkcs11-tool --module /opt/homebrew/opt/softhsm/lib/softhsm/libsofthsm2.so --type pubkey -r -o root-ca-key.crt --label root-ca-key`
+
+`openssl rsa -pubin -inform DER -in  root-ca-key.crt -outform PEM -out root-ca-key.pem`
 
 #
+
 ## Yubikey
 
 Yubikeys are awesome devices, and have a massive scope for usage in crypto problem solving.  Here's a guide to how to set up using a Yubikey for one of the crypto providers.
