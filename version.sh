@@ -1,7 +1,6 @@
 #!/bin/sh
 MINOR=`cat MINOR`
 NEWMINOR=`expr ${MINOR} + 1`
-VERSION=0.9.${NEWMINOR}
+export VERSION=0.9.${NEWMINOR}
 echo $VERSION > VERSION
 echo $NEWMINOR > MINOR
-export VERSION

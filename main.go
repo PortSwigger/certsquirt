@@ -80,7 +80,11 @@ func main() {
 	flag.BoolVar(&flShowVersion, "version", false, "Show version information, and quit.")
 	flag.Parse()
 	if flShowVersion {
-		log.Printf("VERSION: Running version %v built at %v. (githash: %v)", version, buildstamp, githash)
+		if buildstamp != "" && githash != "" {
+			log.Printf("VERSION: Running version %v built at %v. (githash: %v)", version, buildstamp, githash)
+		} else {
+			log.Printf("VERSION: Running release version %v", version)
+		}
 		os.Exit(0)
 	}
 	if flUsage {
