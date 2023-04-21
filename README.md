@@ -45,45 +45,6 @@ At a minimum, you will need to create a DynamoDB table within AWS.  The  [cloudf
 
 # Execution
 
-## SoftHSM
-
-`export SOFTHSM2_CONF=./softhsm2.conf`
-
-`mkdir ./softhsm-tokens`
-
-`softhsm2-util --show-slots`
-
-```
-Available slots:
-Slot 0
-    Slot info:
-        Description:      SoftHSM slot ID 0x0                                             
-        Manufacturer ID:  SoftHSM project                 
-        Hardware version: 2.6
-        Firmware version: 2.6
-        Token present:    yes
-    Token info:
-        Manufacturer ID:  SoftHSM project                 
-        Model:            SoftHSM v2      
-        Hardware version: 2.6
-        Firmware version: 2.6
-        Serial number:                    
-        Initialized:      no
-        User PIN init.:   no
-        Label:                                            
-```
-then
-
-`softhsm2-util --init-token --slot 0 --label certsquirt`
-
-`pkcs11-tool --module /opt/homebrew/opt/softhsm/lib/softhsm/libsofthsm2.so --pin 123456  --keypairgen  --key-type rsa:2048 --label 'root-ca-key'`
-
-`pkcs11-tool --module /opt/homebrew/opt/softhsm/lib/softhsm/libsofthsm2.so --type pubkey -r -o root-ca-key.crt --label root-ca-key`
-
-`openssl rsa -pubin -inform DER -in  root-ca-key.crt -outform PEM -out root-ca-key.pem`
-
-#
-
 ## Yubikey
 
 Yubikeys are awesome devices, and have a massive scope for usage in crypto problem solving.  Here's a guide to how to set up using a Yubikey for one of the crypto providers.
@@ -197,7 +158,21 @@ The cloudformation script outputs the other variables you will need when creatin
 
 ### Configuring AWS-KMS Mode Operations
 
-You'll need to then configure the `aws-kms-pkcs11` layer - a link is at the bottom of this page.  Good luck!
+You'll need to then install and configure the `aws-kms-pkcs11` layer - a link is at the bottom of this page.  
+
+You will need to create a config.json for aws-kms-pkcs11. If you kept the defaults in the cloudformation the label will be correct, and you just need to replace the kms_key_id in the following config, which should be created in either /etc/aws-kms-pkcs11/config.json or $XDG_CONFIG_HOME/aws-kms-pkcs11/config.json (note that XDG_CONFIG_HOME=$HOME/.config by default).  
+
+```
+{
+  "slots": [
+    {
+      "label": "CertSquirt-Root-CA-Key",
+      "kms_key_id": "d52cbc45-eeb9-4dc5-bc53-487b20e8ae7e",
+      "aws_region": "eu-west-1"
+    }
+  ]
+}
+```
 
 Once you've configured everything... copy the root ca KMS key's public key to a file, and then you should now be able to create an x509 certificate for the root CA, using something like:
 
