@@ -135,6 +135,9 @@ func createRootCA(signer crypto11.Signer) bool {
 		// TODO?
 		//OCSPServer:         []string{"https://ocsp.security.portswigger.internal"},
 	}
+	if config.CaAiaRootUrl != "" {
+		tmpl.IssuingCertificateURL = append(tmpl.IssuingCertificateURL, config.CaAiaRootUrl)
+	}
 	// chomp chomp.
 	crtBytes, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, signer.Public().(*rsa.PublicKey), signer)
 	if err != nil {
@@ -144,7 +147,7 @@ func createRootCA(signer crypto11.Signer) bool {
 		Type:  "CERTIFICATE",
 		Bytes: crtBytes,
 	}
-	file, err := os.OpenFile(name.CommonName+".pem", os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0444)
+	file, err := os.OpenFile(name.CommonName+".pem", os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
 		log.Fatalf("FATAL: trying to write %v.pem file (%v)", name.CommonName, err)
 	}
@@ -157,7 +160,7 @@ func createRootCA(signer crypto11.Signer) bool {
 	}
 	log.Printf("INFO: Successfully wrote out pem cert to %v.pem", name.CommonName)
 	// now write out the DER bytes to a crt file
-	err = os.WriteFile(name.CommonName+".crt", crtBytes, 0444)
+	err = os.WriteFile(name.CommonName+".crt", crtBytes, 0644)
 	if err != nil {
 		log.Fatalf("FATAL: trying to write %v.crt file (%v)", name.CommonName, err)
 	}
@@ -238,7 +241,7 @@ func createIntermediateCert(signer crypto11.Signer, intpubkey crypto.PublicKey, 
 		Type:  "CERTIFICATE",
 		Bytes: crtBytes,
 	}
-	file, err := os.OpenFile(name.CommonName+".pem", os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0444)
+	file, err := os.OpenFile(name.CommonName+".pem", os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
 		log.Fatalf("FATAL: trying to write %v.pem file (%v)", name.CommonName, err)
 	}
@@ -251,7 +254,7 @@ func createIntermediateCert(signer crypto11.Signer, intpubkey crypto.PublicKey, 
 	}
 	log.Printf("INFO: Successfully wrote out pem cert to %v.pem", name.CommonName)
 	// now write out the DER bytes to a crt file
-	err = os.WriteFile(name.CommonName+".crt", crtBytes, 0444)
+	err = os.WriteFile(name.CommonName+".crt", crtBytes, 0644)
 	if err != nil {
 		log.Fatalf("FATAL: trying to write %v.crt file (%v)", name.CommonName, err)
 	}
