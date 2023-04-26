@@ -230,6 +230,9 @@ func signCSR(signer crypto11.Signer, csr *x509.CertificateRequest) (crtBytes []b
 		URIs:               csr.URIs,
 	}
 	tmpl.ExtraExtensions = []pkix.Extension{bar, foo}
+	if config.CaAiaUrl != "" {
+		tmpl.IssuingCertificateURL = append(tmpl.IssuingCertificateURL, config.CaAiaUrl)
+	}
 
 	// we need the upstream cert
 	if _, err := os.Stat(flCaCertFile); os.IsNotExist(err) {
