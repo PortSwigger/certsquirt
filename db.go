@@ -61,7 +61,7 @@ func addDbRecord(crtBytes []byte) error {
 	}
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Print("Enter Requester in the format of \"Joe Blogs <j.blogs@foo.com>\" ->   ")
-	requester, _ := reader.ReadString('\n') // E: requester declared and not used // E: requester declared and not used
+	requester, _ := reader.ReadString('\n')
 	// marshal the crt to a pem byte array
 	record := x509Record{
 		Requester:          requester,
