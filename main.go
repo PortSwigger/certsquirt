@@ -23,6 +23,8 @@ type Config struct {
 	Country        string `json:""`
 	CaName         string `json:""`
 	CaVersion      string `json:""`
+	CaAiaIssuerUrl string `json:""`
+	CaAiaRootUrl   string `json:""`
 	OrgUnit        string `json:""`
 	City           string `json:""`
 	County         string `json:""`
@@ -177,8 +179,9 @@ func main() {
 		if err != nil {
 			log.Printf("FATAL: Could not not configure p11 - did you create or specify the configuration file, ")
 			log.Printf("FATAL: as detailed at https://pkg.go.dev/github.com/ThalesIgnite/crypto11#ConfigureFromFile ?")
-			log.Fatalf("FATAL: %v", err)
+			log.Printf("FATAL: Starting at Layer 1, if you are using a yubikey or hardware token, is it plugged in??")
 			log.Printf("FATAL: *** Check if the configured pkcs11 library (%v) is accessible?", config.Path)
+			log.Fatalf("FATAL: %v", err)
 		}
 		crtBytes, err := signCSR(signer, csr)
 		if err != nil {

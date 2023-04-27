@@ -21,6 +21,12 @@ import (
 	"github.com/sethvargo/go-password/password"
 )
 
+// TODO - we should implement a CRL function
+func revokeCRT(crt *x509.Certificate) {
+	// func CreateRevocationList(rand io.Reader, template *RevocationList, issuer *Certificate, priv crypto.Signer) ([]byte, error)
+	// https://pkg.go.dev/crypto/x509#CreateRevocationList
+}
+
 // GenerateSubjectKeyID generates Subject Key Identifier (SKI) using SHA-256
 // hash of the public key bytes according to RFC 7093 section 2.
 func GenerateSubjectKeyID(pub crypto.PublicKey) ([]byte, error) {
@@ -94,6 +100,78 @@ func newSerialNumber() (*big.Int, error) {
 	return rand.Int(rand.Reader, serialNumberLimit)
 }
 
+// This function call should be executed precisely once, to generate the root CA.
+// This is effectively creating a 'self-signed' cert.
+func createRootCA(signer crypto11.Signer) bool {
+	id, err := GenerateSubjectKeyID(signer.Public())
+	if err != nil {
+		log.Fatalf("fatal: %v", err)
+	}
+	// this should only ever be used once, well maybe twice.
+	// but definately we should have another solution by then.
+	name := &pkix.Name{}
+	name.Country = []string{config.Country}
+	name.Organization = []string{config.Organisation}
+	name.OrganizationalUnit = []string{config.OrgUnit}
+	name.CommonName = config.CaName + " - " + config.CaVersion
+
+	tmpl := &x509.Certificate{
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+		SerialNumber:          big.NewInt(31337),
+		Subject:               *name,
+		NotBefore:             time.Now().Add(time.Second * -600).UTC(),
+		NotAfter:              time.Now().AddDate(0, 0, 3650).UTC(),
+		SubjectKeyId:          id,
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		// according to https://cabforum.org/wp-content/uploads/CA-Browser-Forum-BR-1.8.7.pdf
+		// we shouldn't set this. See 7.1.2.1.b Root CA Certificate for details
+		//ExtKeyUsage: []x509.ExtKeyUsage{
+		//	x509.ExtKeyUsageOCSPSigning,
+		//},
+		SignatureAlgorithm: x509.SHA512WithRSA,
+		// as above, should not be set 7.1.2.1.a for details
+		//MaxPathLen: 1,
+		// TODO?
+		//OCSPServer:         []string{"https://ocsp.security.portswigger.internal"},
+	}
+	if config.CaAiaRootUrl != "" {
+		tmpl.IssuingCertificateURL = append(tmpl.IssuingCertificateURL, config.CaAiaRootUrl)
+	}
+	// chomp chomp.
+	crtBytes, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, signer.Public().(*rsa.PublicKey), signer)
+	if err != nil {
+		log.Fatalf("FATAL: while trying to sign certificate (%v)", err)
+	}
+	pemBlock := &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: crtBytes,
+	}
+	file, err := os.OpenFile(name.CommonName+".pem", os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if err != nil {
+		log.Fatalf("FATAL: trying to write %v.pem file (%v)", name.CommonName, err)
+	}
+	defer file.Close()
+	out := pem.EncodeToMemory(pemBlock)
+	if _, err := file.Write(out); err != nil {
+		file.Close()
+		os.Remove(name.CommonName + ".pem")
+		log.Fatalf("FATAL: trying to write %v.pem file (%v)", name.CommonName, err)
+	}
+	log.Printf("INFO: Successfully wrote out pem cert to %v.pem", name.CommonName)
+	// now write out the DER bytes to a crt file
+	err = os.WriteFile(name.CommonName+".crt", crtBytes, 0644)
+	if err != nil {
+		log.Fatalf("FATAL: trying to write %v.crt file (%v)", name.CommonName, err)
+	}
+	log.Printf("INFO: Successfully wrote out crt file to %v.crt", name.CommonName)
+	err = addDbRecord(crtBytes)
+	if err != nil {
+		log.Printf("ERROR: while adding record to DB (non-fatal, but please investigate!)")
+	}
+	return true
+}
+
 func createIntermediateCert(signer crypto11.Signer, intpubkey crypto.PublicKey, subjectname string) (caName string, ok bool) {
 	// need to read in pubkey
 	id, err := GenerateSubjectKeyID(intpubkey)
@@ -129,14 +207,19 @@ func createIntermediateCert(signer crypto11.Signer, intpubkey crypto.PublicKey, 
 
 		// you may want to undefine this - if you do any end user certs signed by this cert will be scoped
 		// to only those usages below.  Of course, this may be what you wish to achieve.
-		ExtKeyUsage: []x509.ExtKeyUsage{
-			x509.ExtKeyUsageOCSPSigning, x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth,
-		},
+		// More details here: https://cabforum.org/wp-content/uploads/CA-Browser-Forum-BR-1.8.7.pdf
+		// See section 7.1.2.2 Subordinate CA Certificate item g.
+		//ExtKeyUsage: []x509.ExtKeyUsage{
+		//	x509.ExtKeyUsageOCSPSigning, x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth,
+		//},
 		SignatureAlgorithm: x509.SHA512WithRSA,
-		// According to Andy C maxpathlen only belongs on the root.
+		// define this here.
 		MaxPathLen: 0,
 		// TODO?
 		//OCSPServer:         []string{"https://ocsp.security.portswigger.internal"},
+	}
+	if config.CaAiaRootUrl != "" {
+		tmpl.IssuingCertificateURL = append(tmpl.IssuingCertificateURL, config.CaAiaRootUrl)
 	}
 	// we need the upstream cert
 	if _, err := os.Stat(flCaCertFile); os.IsNotExist(err) {
@@ -158,7 +241,7 @@ func createIntermediateCert(signer crypto11.Signer, intpubkey crypto.PublicKey, 
 		Type:  "CERTIFICATE",
 		Bytes: crtBytes,
 	}
-	file, err := os.OpenFile(name.CommonName+".pem", os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0444)
+	file, err := os.OpenFile(name.CommonName+".pem", os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
 		log.Fatalf("FATAL: trying to write %v.pem file (%v)", name.CommonName, err)
 	}
@@ -171,7 +254,7 @@ func createIntermediateCert(signer crypto11.Signer, intpubkey crypto.PublicKey, 
 	}
 	log.Printf("INFO: Successfully wrote out pem cert to %v.pem", name.CommonName)
 	// now write out the DER bytes to a crt file
-	err = os.WriteFile(name.CommonName+".crt", crtBytes, 0444)
+	err = os.WriteFile(name.CommonName+".crt", crtBytes, 0644)
 	if err != nil {
 		log.Fatalf("FATAL: trying to write %v.crt file (%v)", name.CommonName, err)
 	}
@@ -230,6 +313,9 @@ func signCSR(signer crypto11.Signer, csr *x509.CertificateRequest) (crtBytes []b
 		URIs:               csr.URIs,
 	}
 	tmpl.ExtraExtensions = []pkix.Extension{bar, foo}
+	if config.CaAiaIssuerUrl != "" {
+		tmpl.IssuingCertificateURL = append(tmpl.IssuingCertificateURL, config.CaAiaIssuerUrl)
+	}
 
 	// we need the upstream cert
 	if _, err := os.Stat(flCaCertFile); os.IsNotExist(err) {
@@ -298,76 +384,4 @@ func prettyPrintCSR(csr *x509.CertificateRequest) {
 	log.Printf("INFO: \t\tEmailAddresses: %v", csr.EmailAddresses)
 	log.Printf("INFO: \t\tIPAddresses: %v", csr.IPAddresses)
 	log.Printf("INFO: \t\tURIs: %v", csr.URIs)
-}
-
-// This function call should be executed precisely once, to generate the root CA.
-// This is effectively creating a 'self-signed' cert.
-func createRootCA(signer crypto11.Signer) bool {
-	id, err := GenerateSubjectKeyID(signer.Public())
-	if err != nil {
-		log.Fatalf("fatal: %v", err)
-	}
-	// this should only ever be used once, well maybe twice.
-	// but definately we should have another solution by then.
-	name := &pkix.Name{}
-	name.Country = []string{config.Country}
-	name.Organization = []string{config.Organisation}
-	name.OrganizationalUnit = []string{config.OrgUnit}
-	name.CommonName = config.CaName + " - " + config.CaVersion
-
-	tmpl := &x509.Certificate{
-		IsCA:                  true,
-		BasicConstraintsValid: true,
-		SerialNumber:          big.NewInt(31337),
-		Subject:               *name,
-		NotBefore:             time.Now().Add(time.Second * -600).UTC(),
-		NotAfter:              time.Now().AddDate(0, 0, 3650).UTC(),
-		SubjectKeyId:          id,
-		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
-		ExtKeyUsage: []x509.ExtKeyUsage{
-			x509.ExtKeyUsageOCSPSigning,
-		},
-		SignatureAlgorithm: x509.SHA512WithRSA,
-		MaxPathLen:         1,
-		// TODO?
-		//OCSPServer:         []string{"https://ocsp.security.portswigger.internal"},
-	}
-	// chomp chomp.
-	crtBytes, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, signer.Public().(*rsa.PublicKey), signer)
-	if err != nil {
-		log.Fatalf("FATAL: while trying to sign certificate (%v)", err)
-	}
-	pemBlock := &pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: crtBytes,
-	}
-	file, err := os.OpenFile(name.CommonName+".pem", os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0444)
-	if err != nil {
-		log.Fatalf("FATAL: trying to write %v.pem file (%v)", name.CommonName, err)
-	}
-	defer file.Close()
-	out := pem.EncodeToMemory(pemBlock)
-	if _, err := file.Write(out); err != nil {
-		file.Close()
-		os.Remove(name.CommonName + ".pem")
-		log.Fatalf("FATAL: trying to write %v.pem file (%v)", name.CommonName, err)
-	}
-	log.Printf("INFO: Successfully wrote out pem cert to %v.pem", name.CommonName)
-	// now write out the DER bytes to a crt file
-	err = os.WriteFile(name.CommonName+".crt", crtBytes, 0444)
-	if err != nil {
-		log.Fatalf("FATAL: trying to write %v.crt file (%v)", name.CommonName, err)
-	}
-	log.Printf("INFO: Successfully wrote out crt file to %v.crt", name.CommonName)
-	err = addDbRecord(crtBytes)
-	if err != nil {
-		log.Printf("ERROR: while adding record to DB (non-fatal, but please investigate!)")
-	}
-	return true
-}
-
-// TODO - we should implement a CRL function
-func revokeCRT(crt *x509.Certificate) {
-	// func CreateRevocationList(rand io.Reader, template *RevocationList, issuer *Certificate, priv crypto.Signer) ([]byte, error)
-	// https://pkg.go.dev/crypto/x509#CreateRevocationList
 }
