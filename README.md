@@ -1,4 +1,4 @@
-# A golang PKI in less than 1000 lines of code.
+# A golang PKI in just over a 1000 lines of code.
 
 # Introduction
 

@@ -1,14 +1,17 @@
 package main
 
 import (
+	"bufio"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/asn1"
+	"fmt"
 	"log"
 	"net"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -21,6 +24,7 @@ import (
 var dyndb *dynamodb.DynamoDB
 
 type x509Record struct {
+	Requester          string
 	SerialNumber       string
 	Issuer             string
 	Subject            string
@@ -33,6 +37,7 @@ type x509Record struct {
 	IPAddresses        []net.IP
 	URIs               []*url.URL
 	PubKey             []byte
+	DerCert            []byte
 }
 
 func addDbRecord(crtBytes []byte) error {
@@ -54,7 +59,12 @@ func addDbRecord(crtBytes []byte) error {
 	default:
 		return errors.New("only ECDSA and RSA public keys are supported")
 	}
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print("Enter Requester in the format of \"Joe Blogs <j.blogs@foo.com>\" ->   ")
+	requester, _ := reader.ReadString('\n') // E: requester declared and not used // E: requester declared and not used
+	// marshal the crt to a pem byte array
 	record := x509Record{
+		Requester:          requester,
 		SerialNumber:       crt.SerialNumber.String(), // serial number should be unique (as in cryptographically) so we can use this as the key
 		Issuer:             crt.Issuer.String(),
 		Subject:            crt.Subject.String(),
@@ -67,6 +77,7 @@ func addDbRecord(crtBytes []byte) error {
 		IPAddresses:        crt.IPAddresses,
 		URIs:               crt.URIs,
 		PubKey:             pubBytes,
+		DerCert:            crtBytes,
 	}
 
 	// we should be running under the role given to us by the sts tokens.

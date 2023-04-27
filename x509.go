@@ -298,6 +298,7 @@ func signCSR(signer crypto11.Signer, csr *x509.CertificateRequest) (crtBytes []b
 		Critical: false,
 		Value:    yy,
 	}
+
 	tmpl := &x509.Certificate{
 		SerialNumber:       serialNumber,
 		Subject:            newSubject,
