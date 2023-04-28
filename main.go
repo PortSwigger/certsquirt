@@ -23,8 +23,8 @@ type Config struct {
 	Country        string `json:""`
 	CaName         string `json:""`
 	CaVersion      string `json:""`
-	CaAiaIssuerUrl string `json:""`
-	CaAiaRootUrl   string `json:""`
+	CaAiaIssuerURL string `json:""`
+	CaAiaRootURL   string `json:""`
 	OrgUnit        string `json:""`
 	City           string `json:""`
 	County         string `json:""`
