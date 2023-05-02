@@ -135,8 +135,8 @@ func createRootCA(signer crypto11.Signer) bool {
 		// TODO?
 		//OCSPServer:         []string{"https://ocsp.security.portswigger.internal"},
 	}
-	if config.CaAiaRootUrl != "" {
-		tmpl.IssuingCertificateURL = append(tmpl.IssuingCertificateURL, config.CaAiaRootUrl)
+	if config.CaAiaRootURL != "" {
+		tmpl.IssuingCertificateURL = append(tmpl.IssuingCertificateURL, config.CaAiaRootURL)
 	}
 	// chomp chomp.
 	crtBytes, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, signer.Public().(*rsa.PublicKey), signer)
@@ -218,8 +218,8 @@ func createIntermediateCert(signer crypto11.Signer, intpubkey crypto.PublicKey, 
 		// TODO?
 		//OCSPServer:         []string{"https://ocsp.security.portswigger.internal"},
 	}
-	if config.CaAiaRootUrl != "" {
-		tmpl.IssuingCertificateURL = append(tmpl.IssuingCertificateURL, config.CaAiaRootUrl)
+	if config.CaAiaRootURL != "" {
+		tmpl.IssuingCertificateURL = append(tmpl.IssuingCertificateURL, config.CaAiaRootURL)
 	}
 	// we need the upstream cert
 	if _, err := os.Stat(flCaCertFile); os.IsNotExist(err) {
@@ -314,8 +314,8 @@ func signCSR(signer crypto11.Signer, csr *x509.CertificateRequest) (crtBytes []b
 		URIs:               csr.URIs,
 	}
 	tmpl.ExtraExtensions = []pkix.Extension{bar, foo}
-	if config.CaAiaIssuerUrl != "" {
-		tmpl.IssuingCertificateURL = append(tmpl.IssuingCertificateURL, config.CaAiaIssuerUrl)
+	if config.CaAiaIssuerURL != "" {
+		tmpl.IssuingCertificateURL = append(tmpl.IssuingCertificateURL, config.CaAiaIssuerURL)
 	}
 
 	// we need the upstream cert
