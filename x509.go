@@ -313,6 +313,9 @@ func signCSR(signer crypto11.Signer, csr *x509.CertificateRequest) (crtBytes []b
 		IPAddresses:        csr.IPAddresses,
 		URIs:               csr.URIs,
 	}
+	if flOcspSigner {
+		tmpl.ExtKeyUsage = append(tmpl.ExtKeyUsage, x509.ExtKeyUsageOCSPSigning)
+	}
 	tmpl.ExtraExtensions = []pkix.Extension{bar, foo}
 	if config.CaAiaIssuerURL != "" {
 		tmpl.IssuingCertificateURL = append(tmpl.IssuingCertificateURL, config.CaAiaIssuerURL)

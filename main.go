@@ -46,7 +46,7 @@ type Config struct {
 var config Config
 
 // command line flags/arguments
-var flShowVersion, flCA, flSign, flSubCa, flBootstrap, flUsage, flDebug, flGenPrivKey bool
+var flShowVersion, flCA, flSign, flSubCa, flBootstrap, flUsage, flDebug, flGenPrivKey, flOcspSigner bool
 var flCSR, flPubKey, flCaCertFile, flInterName, flConfig string
 
 var keypassword string
@@ -66,6 +66,7 @@ func main() {
 	// CSR Based operations
 	flag.StringVar(&flCSR, "csr", "", "read from filename and sign/inspect a csr from another system.")
 	flag.BoolVar(&flSign, "sign", false, "actually issue a certificate from a csr.")
+	flag.BoolVar(&flOcspSigner, "ocspsigner", false, "*dangerous* - indicate this certificate can be used for OCSP signing. Be sure you need this!")
 
 	// Intermediate based operations
 	flag.BoolVar(&flSubCa, "subca", false, "indicates you want to sign another CA's CSR (ca:true) to authorize it's operation as a sub CA.  Use with 'bootstrap' flag to create one automatically.")

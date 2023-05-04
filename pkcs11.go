@@ -19,7 +19,7 @@ func initPkcs11(pubkey *rsa.PublicKey) (signer crypto11.Signer, err error) {
 	// crypto11.Config
 	var p11Config crypto11.Config
 	if flDebug {
-		log.Printf("Attempting to configure provider with these values: %#v,%#v, %#v, %#v", config.Path, config.Pin, config.TokenLabel, config.SlotNumber)
+		log.Printf("Attempting to configure provider with these values: %#v, %#v, %#v, %#v", config.Path, config.Pin, config.TokenLabel, config.SlotNumber)
 	}
 	if config.TokenLabel != "" {
 		p11Config = crypto11.Config{
