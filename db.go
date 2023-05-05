@@ -24,6 +24,7 @@ import (
 var dyndb *dynamodb.DynamoDB
 
 type x509Record struct {
+	Status             string
 	Requester          string
 	SerialNumber       string
 	Issuer             string
@@ -64,6 +65,7 @@ func addDbRecord(crtBytes []byte) error {
 	requester, _ := reader.ReadString('\n')
 	// marshal the crt to a pem byte array
 	record := x509Record{
+		Status:             "V", // Valid
 		Requester:          requester,
 		SerialNumber:       crt.SerialNumber.String(), // serial number should be unique (as in cryptographically) so we can use this as the key
 		Issuer:             crt.Issuer.String(),
