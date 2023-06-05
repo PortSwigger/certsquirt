@@ -12,6 +12,9 @@ COPY aws-kms-pkcs11/aws_kms_pkcs11.so /usr/local/lib/
 # create required symlinks for above libs
 RUN /usr/sbin/ldconfig
 
+# bootstrap the aws-kms provider
+RUN mkdir -p /etc/aws-kms-pkcs11/ && ln -s /depot/aws-kms-config.json /etc/aws-kms-pkcs11/config.json
+
 # Copy SCEP server images
 COPY certsquirt /certsquirt
 
