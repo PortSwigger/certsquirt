@@ -13,6 +13,6 @@ COPY aws-kms-pkcs11/aws_kms_pkcs11.so /usr/local/lib/
 RUN /usr/sbin/ldconfig
 
 # Copy SCEP server images
-COPY certsquirt /usr/bin/certsquirt
+COPY certsquirt /certsquirt
 
-ENTRYPOINT ["/usr/bin/certsquirt"]
+ENTRYPOINT ["/certsquirt/certsquirt"]
