@@ -1,7 +1,7 @@
 FROM ubuntu:latest
 
 # Install aws kms dependencies
-RUN apt update # && apt install --no-install-recommends -y libjson-c5 awscli jq
+RUN apt update # && apt install --no-install-recommends -y libjson-c5 awscli jq ca-certificates
 
 ### add required libs for pkcs11 provider
 # ignore symlinks.
