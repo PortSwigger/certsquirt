@@ -266,12 +266,17 @@ func main() {
 			log.Fatalf("FATAL: Please provide the *signing* CA certificate via the -cacert flag.")
 		}
 
+		pubkey, err := loadPubKey(flPubKey)
+		if err != nil {
+			log.Fatalf("FATAL: %v", err)
+		}
+
 		signingCert, err := loadPemCert(flCaCertFile)
 		if err != nil {
 			log.Fatalf("FATAL: Couldn't load CA x509 certificate from %v", flCaCertFile)
 		}
 		signer, err := initPkcs11(signingCert.PublicKey.(*rsa.PublicKey))
-		_, ok := createIntermediateCert(signer, signingCert.PublicKey, flInterName)
+		_, ok := createIntermediateCert(signer, pubkey, flInterName)
 		if !ok {
 			log.Fatalf("FATAL: When creating certificate (%v)", err)
 		}
