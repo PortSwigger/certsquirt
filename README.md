@@ -10,7 +10,17 @@ This effectively gives you an excellent starting point to expand your crypto wor
 
 # Caveats
 
-Although not an issue with this solution per se, if you intend to use the `aws-kms-pkcs11` provider, this does not build easily on MacOS.  You are advised to use a Linux machine/VM to run this solution if you wish to use KMS.
+Although not an issue with this solution per se, if you intend to use the `aws-kms-pkcs11` provider, this does not build easily on MacOS.  You are advised to use a Linux machine/VM to run this solution if you wish to use KMS.  
+
+## Docker
+There is also a docker image which you can use, based on ubuntu, on the 'releases' page of the github.
+
+You can run it like this - note you will need to map `somedir` to `depot`, with somedir containing the config and artifacts you need, e.g. 
+```
+docker run -v somedir:/depot/ --platform linux/x86_64 -w /depot -it ghcr.io/portswigger/certsquirt:main -config /depot/config.json.prod  -ca -bootstrap  -pubkey /depot/some_kms_root_ca_pubkey.pub
+```
+
+#
 
 If you wish to use Yubikeys as the provider, then this works rather well with MacOS.
 

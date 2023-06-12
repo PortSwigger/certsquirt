@@ -1,2 +1,5 @@
 *.pem
 *.crt
+*.csr
+*.key
+certsquirt*
