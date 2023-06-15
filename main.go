@@ -319,7 +319,7 @@ func main() {
 		// write out PEM wrapped key
 		privPEMBlock, err := x509.EncryptPEMBlock(
 			rand.Reader,
-			"CERTIFICATE",
+			"PRIVATE KEY",
 			x509.MarshalPKCS1PrivateKey(key),
 			[]byte(keypassword),
 			x509.PEMCipher3DES, // PEMCipherAES256 prefereable but interopability reigns supreme...
