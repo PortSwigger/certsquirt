@@ -282,7 +282,7 @@ func main() {
 		}
 	}
 	// perhaps we've been asked to create a new subca and generate a privkey
-	if flSubCa && flGenPrivKey && flPubKey == "" {
+	if flSubCa && flGenPrivKey && flPubKey != "" {
 		if flInterName == "" {
 			log.Fatalf("ERROR: You need to pass a 'friendly' name for this CA via the -subcaname option (e.g. -subcaname 'Apple TV Devices') ")
 		}
