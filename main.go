@@ -281,7 +281,11 @@ func main() {
 			log.Fatalf("FATAL: When creating certificate (%v)", err)
 		}
 	}
+
 	// perhaps we've been asked to create a new subca and generate a privkey
+	if flSubCa && flGenPrivKey && flPubKey == "" {
+		log.Fatalf("ERROR: Please pass me the signing key for this operation via -pubkey so I can figure out which one to use.")
+	}
 	if flSubCa && flGenPrivKey && flPubKey != "" {
 		if flInterName == "" {
 			log.Fatalf("ERROR: You need to pass a 'friendly' name for this CA via the -subcaname option (e.g. -subcaname 'Apple TV Devices') ")
