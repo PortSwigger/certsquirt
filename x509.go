@@ -323,8 +323,11 @@ func signCSR(signer crypto11.Signer, csr *x509.CertificateRequest) (crtBytes []b
 		tmpl.ExtKeyUsage = append(tmpl.ExtKeyUsage, x509.ExtKeyUsageOCSPSigning)
 	}
 	tmpl.ExtraExtensions = []pkix.Extension{bar, foo}
-	if config.CaAiaIssuerURL != "" {
-		tmpl.IssuingCertificateURL = append(tmpl.IssuingCertificateURL, config.CaAiaIssuerURL)
+	// if config.CaAiaIssuerURL != "" {
+	// 	tmpl.IssuingCertificateURL = append(tmpl.IssuingCertificateURL, config.CaAiaIssuerURL)
+	// }
+	if config.CaAiaRootURL != "" {
+		tmpl.IssuingCertificateURL = append(tmpl.IssuingCertificateURL, config.CaAiaRootURL)
 	}
 	if config.OCSPServer != "" {
 		tmpl.OCSPServer = append(tmpl.OCSPServer, config.OCSPServer)

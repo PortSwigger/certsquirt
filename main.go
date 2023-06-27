@@ -19,11 +19,11 @@ import (
 )
 
 type Config struct {
-	Organisation   string `json:""`
-	Country        string `json:""`
-	CaName         string `json:""`
-	CaVersion      string `json:""`
-	CaAiaIssuerURL string `json:""`
+	Organisation string `json:""`
+	Country      string `json:""`
+	CaName       string `json:""`
+	CaVersion    string `json:""`
+	//CaAiaIssuerURL string `json:""`
 	CaAiaRootURL   string `json:""`
 	OrgUnit        string `json:""`
 	City           string `json:""`
