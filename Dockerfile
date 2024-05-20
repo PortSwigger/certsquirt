@@ -1,7 +1,8 @@
 FROM ubuntu:latest
 
 # Install aws kms dependencies
-RUN apt update && apt install --no-install-recommends -y libjson-c5 awscli jq ca-certificates
+# awscli has been removed from the repo's and is now - unhelpfully - a 'snap' installed app.
+RUN apt update && apt install --no-install-recommends -y libjson-c5 jq ca-certificates
 
 ### add required libs for pkcs11 provider
 # ignore symlinks.
