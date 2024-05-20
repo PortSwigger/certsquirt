@@ -24,7 +24,7 @@ jobs:
           path: certsquirt
 
       - name: Setup Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: 'stable'
 
@@ -33,14 +33,14 @@ jobs:
 
       - name: Install aws-sdk-cpp
         id: vcpkg
-        uses: johnwason/vcpkg-action@v4
+        uses: johnwason/vcpkg-action@v6
         with:
           pkgs: aws-sdk-cpp[kms] aws-sdk-cpp[acm-pca]
           triplet: x64-linux-dynamic
           token: ${{ github.token }}
 
       - name: Checkout aws-kms-pkcs11
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: "JackOfMostTrades/aws-kms-pkcs11"
           path: aws-kms-pkcs11
