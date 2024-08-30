@@ -7,7 +7,7 @@ require (
 	github.com/aws/aws-sdk-go v1.55.5
 	github.com/pkg/errors v0.9.1
 	github.com/pquerna/otp v1.4.0
-	github.com/sethvargo/go-password v0.2.0
+	github.com/sethvargo/go-password v0.3.1
 	golang.org/x/term v0.23.0
 )
 
