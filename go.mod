@@ -1,6 +1,8 @@
 module github.com/PortSwigger/certsquirt
 
-go 1.20
+go 1.21
+
+toolchain go1.23.0
 
 require (
 	github.com/ThalesIgnite/crypto11 v1.2.5
