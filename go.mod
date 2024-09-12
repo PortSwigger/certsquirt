@@ -8,7 +8,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/pquerna/otp v1.4.0
 	github.com/sethvargo/go-password v0.3.1
-	golang.org/x/term v0.23.0
+	golang.org/x/term v0.24.0
 )
 
 require (
@@ -16,5 +16,5 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/miekg/pkcs11 v1.0.3-0.20190429190417-a667d056470f // indirect
 	github.com/thales-e-security/pool v0.0.2 // indirect
-	golang.org/x/sys v0.23.0 // indirect
+	golang.org/x/sys v0.25.0 // indirect
 )
