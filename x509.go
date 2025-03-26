@@ -309,7 +309,7 @@ func signCSR(signer crypto11.Signer, csr *x509.CertificateRequest) (crtBytes []b
 		SerialNumber:       serialNumber,
 		Subject:            newSubject,
 		NotBefore:          time.Now().Add(time.Second * -600).UTC(),
-		NotAfter:           time.Now().AddDate(0, 0, 365),
+		NotAfter:           time.Now().AddDate(0, 0, flTtl),
 		SubjectKeyId:       id,
 		KeyUsage:           x509.KeyUsageDigitalSignature | x509.KeyUsageKeyAgreement | x509.KeyUsageKeyEncipherment | x509.KeyUsageDataEncipherment,
 		ExtKeyUsage:        []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},

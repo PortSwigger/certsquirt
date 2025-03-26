@@ -48,6 +48,7 @@ var config Config
 // command line flags/arguments
 var flShowVersion, flCA, flSign, flSubCa, flBootstrap, flUsage, flDebug, flGenPrivKey, flOcspSigner bool
 var flCSR, flPubKey, flCaCertFile, flInterName, flConfig string
+var flTtl int
 
 var keypassword string
 var buildstamp, githash string // For versioning, via go build -v -x -a -ldflags "-X main.buildstamp=`date -u '+%Y-%m-%d_%I:%M:%S%p'` -X main.githash=`git rev-parse HEAD`" || exit'`
@@ -80,6 +81,7 @@ func main() {
 	flag.BoolVar(&flDebug, "debug", false, "show more stuff about what's happening.")
 	// config
 	flag.StringVar(&flConfig, "config", "config.json", "override the default config file to be used.")
+	flag.IntVar(&flTtl, "ttl", 365, "override the default 365 days for an issued cert.")
 	flag.BoolVar(&flShowVersion, "version", false, "Show version information, and quit.")
 	flag.Parse()
 	if flShowVersion {
