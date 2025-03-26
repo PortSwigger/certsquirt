@@ -16,6 +16,7 @@ Although not an issue with this solution per se, if you intend to use the `aws-k
 There is also a docker image which you can use, based on ubuntu, on the 'releases' page of the github.
 
 You can run it like this - note you will need to map `somedir` to `depot`, with somedir containing the config and artifacts you need, e.g. 
+**FIXME**
 ```
 docker run -v somedir:/depot/ --platform linux/x86_64 -w /depot -it ghcr.io/portswigger/certsquirt:main -config /depot/config.json.prod  -ca -bootstrap  -pubkey /depot/some_kms_root_ca_pubkey.pub
 ```
