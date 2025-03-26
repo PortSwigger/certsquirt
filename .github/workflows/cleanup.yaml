@@ -10,11 +10,11 @@ jobs:
       - name: Install GitHub CLI
         uses: cli/cli-action@v2
       - name: Install GitHub CLI (official script)
-          shell: bash
-          run: |
-            type -p gh || (
-              curl -fsSL https://cli.github.com/install.sh | sudo bash
-            )
+        shell: bash
+        run: |
+          type -p gh || (
+            curl -fsSL https://cli.github.com/install.sh | sudo bash
+          )
 
       - name: Authenticate GH CLI
         run: echo "${{ secrets.GHCR_TOKEN }}" | gh auth login --with-token
