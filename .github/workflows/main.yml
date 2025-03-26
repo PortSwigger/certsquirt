@@ -124,7 +124,7 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.repo_lower }}:${{ env.VERSION }}
             ${{ env.REGISTRY }}/${{ env.repo_lower }}:latest
-            ${{ env.REGISTRY }}/${{ env.repo_lower }}:${{ matrix.platform }}
+            ${{ env.REGISTRY }}/${{ env.repo_lower }}:${{ env.PLATFORM_TAG }}
           labels: ${{ steps.meta.outputs.labels }}
 
       - name: Upload CertSquirt binary + audit log
