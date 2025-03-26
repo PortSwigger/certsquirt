@@ -5,7 +5,7 @@
 [![Latest Release](https://img.shields.io/github/v/release/portswigger/certsquirt)](https://github.com/portswigger/certsquirt/releases)
 [![License](https://img.shields.io/github/license/portswigger/certsquirt)](LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/portswigger/certsquirt)](https://goreportcard.com/report/github.com/portswigger/certsquirt)
-[![CodeQL](https://github.com/portswigger/certsquirt/actions/workflows/codeql.yml/badge.svg)](https://github.com/portswigger/certsquirt/actions/workflows/codeql.yml)
+[![CodeQL](https://github.com/PortSwigger/certsquirt/actions/workflows/github-code-scanning/codeql.yml/badge.svg)](https://github.com/PortSwigger/certsquirt/actions/workflows/github-code-scanning/codeql.yml)
 
 # Introduction
 
