@@ -69,10 +69,9 @@ jobs:
       - name: Build CertSquirt with version info
         run: |
           cd certsquirt
-          go build -v -x -a -ldflags "-X main.buildstamp=$(date -u '+%Y-%m-%d_%I:%M:%S%p') -X main.githash=$(git rev-parse HEAD)" -o certsquirt
+          go build -v -ldflags "-X main.buildstamp=$(date -u '+%Y-%m-%d_%I:%M:%S%p') -X main.githash=$(git rev-parse HEAD)" -o certsquirt
           # copy the binary ready for upload release...
-          cp certsquirt/certsquirt certsquirt/certsquirt-${{ env.PLATFORM_TAG }}-${{ env.SHORT_SHA }}
-
+          cp certsquirt certsquirt-${{ env.PLATFORM_TAG }}-${{ env.SHORT_SHA }}
 
       - name: Install aws-sdk-cpp
         id: vcpkg
