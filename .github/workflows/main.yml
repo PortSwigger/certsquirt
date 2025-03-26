@@ -126,6 +126,8 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.repo_lower }}:latest
             ${{ env.REGISTRY }}/${{ env.repo_lower }}:${{ env.PLATFORM_TAG }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Upload CertSquirt binary + audit log
         if: github.ref == 'refs/heads/main'
