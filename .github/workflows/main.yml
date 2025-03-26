@@ -22,10 +22,6 @@ jobs:
       fail-fast: false
 
     steps:
-      - name: Set lowercase repo info
-        id: vars
-        run: |
-          echo "repo_lower=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
       - name: Set lowercase repo info and sanitized platform tag
         id: vars
         run: |
