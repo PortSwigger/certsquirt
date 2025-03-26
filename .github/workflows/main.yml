@@ -26,6 +26,11 @@ jobs:
         id: vars
         run: |
           echo "repo_lower=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+      - name: Set lowercase repo info and sanitized platform tag
+        id: vars
+        run: |
+          echo "repo_lower=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+          echo "PLATFORM_TAG=$(echo '${{ matrix.platform }}' | sed 's|/|-|')" >> $GITHUB_ENV
 
       - name: Harden Runner
         uses: step-security/harden-runner@v2.10.0
