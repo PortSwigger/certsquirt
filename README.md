@@ -21,6 +21,10 @@ You can run it like this - note you will need to map `somedir` to `depot`, with 
 docker run -v somedir:/depot/ --platform linux/x86_64 -w /depot -it ghcr.io/portswigger/certsquirt:main -config /depot/config.json.prod  -ca -bootstrap  -pubkey /depot/some_kms_root_ca_pubkey.pub
 ```
 
+```
+docker pull ghcr.io/portswigger/certsquirt:linux-arm64
+```
+
 #
 
 If you wish to use Yubikeys as the provider, then this works rather well with MacOS.
