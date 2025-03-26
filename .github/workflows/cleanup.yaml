@@ -1,0 +1,34 @@
+name: Clean Old GHCR Images
+
+on:
+  workflow_dispatch:  # or schedule: [{cron: "0 3 * * 0"}] for weekly
+
+jobs:
+  clean:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install GitHub CLI
+        uses: cli/cli-action@v2
+
+      - name: Authenticate GH CLI
+        run: echo "${{ secrets.GHCR_TOKEN }}" | gh auth login --with-token
+
+      - name: Delete old GHCR versions
+        env:
+          GHCR_REPO: certsquirt
+          GHCR_ORG: portswigger
+          KEEP_VERSIONS: 5
+        run: |
+          echo "Fetching image versions for $GHCR_ORG/$GHCR_REPO..."
+          VERSION_IDS=$(gh api orgs/$GHCR_ORG/packages/container/$GHCR_REPO/versions --paginate -q '.[].id')
+
+          COUNT=0
+          for VERSION_ID in $VERSION_IDS; do
+            COUNT=$((COUNT+1))
+            if [ "$COUNT" -le "$KEEP_VERSIONS" ]; then
+              echo "Keeping version $VERSION_ID"
+              continue
+            fi
+            echo "Deleting version $VERSION_ID"
+            gh api --method DELETE orgs/$GHCR_ORG/packages/container/$GHCR_REPO/versions/$VERSION_ID
+          done

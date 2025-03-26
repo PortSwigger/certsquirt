@@ -52,6 +52,16 @@ jobs:
             security.ubuntu.com:80
             storage.googleapis.com:443
 
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
       - name: Checkout certsquirt
         uses: actions/checkout@v4
         with:
