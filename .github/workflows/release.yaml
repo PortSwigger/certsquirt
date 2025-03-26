@@ -17,8 +17,14 @@ jobs:
       fail-fast: false
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set lowercase repo info
+        id: vars
+        run: |
+          echo "owner_lower=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+          echo "repo_lower=$(basename '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -40,8 +46,8 @@ jobs:
           push: true
           platforms: ${{ matrix.os }}/${{ matrix.arch }}
           tags: |
-            ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ github.sha }}
-            ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ matrix.os }}-${{ matrix.arch }}
+            ghcr.io/${{ env.owner_lower }}/${{ env.repo_lower }}:${{ github.sha }}
+            ghcr.io/${{ env.owner_lower }}/${{ env.repo_lower }}:${{ matrix.os }}-${{ matrix.arch }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
