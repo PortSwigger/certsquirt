@@ -1,5 +1,12 @@
 # A golang PKI in just over a 1000 lines of code.
 
+[![Build](https://github.com/portswigger/certsquirt/actions/workflows/release.yml/badge.svg)](https://github.com/portswigger/certsquirt/actions)
+[![GHCR](https://img.shields.io/badge/GHCR-certsquirt-blue?logo=docker)](https://github.com/orgs/portswigger/packages/container/package/certsquirt)
+[![Latest Release](https://img.shields.io/github/v/release/portswigger/certsquirt)](https://github.com/portswigger/certsquirt/releases)
+[![License](https://img.shields.io/github/license/portswigger/certsquirt)](LICENSE)
+[![Go Report Card](https://goreportcard.com/badge/github.com/portswigger/certsquirt)](https://goreportcard.com/report/github.com/portswigger/certsquirt)
+[![CodeQL](https://github.com/portswigger/certsquirt/actions/workflows/codeql.yml/badge.svg)](https://github.com/portswigger/certsquirt/actions/workflows/codeql.yml)
+
 # Introduction
 
 This repository contains a solution to create and manage a small-scale PKI for a small or medium sized enterprise, which is managed securely with keys being managed by a PKCS11 provider.  This is an easier solution to drive than something like easy-rsa, is more secure, and is far simpler to configure than other PKI software solutions.
