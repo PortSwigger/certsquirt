@@ -30,7 +30,7 @@ jobs:
       - name: Harden Runner
         uses: step-security/harden-runner@v2.10.0
         with:
-          egress-policy: block
+          egress-policy: audit
           allowed-endpoints: >
             api.github.com:443
             archive.ubuntu.com:80
