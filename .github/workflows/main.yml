@@ -156,8 +156,8 @@ jobs:
           gh release create "v${VERSION}" \
             --title "Release v${VERSION}" \
             --notes "Automated release for version ${VERSION}" \
-            certsquirt/certsquirt-linux-amd64 \
-            certsquirt/certsquirt-linux-arm64 \
+            certsquirt-linux-amd64 \
+            certsquirt-linux-arm64 \
             certsquirt/harden-runner-log.json
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
