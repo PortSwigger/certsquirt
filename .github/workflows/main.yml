@@ -145,6 +145,12 @@ jobs:
           tag_name: v${{ env.VERSION }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Delete existing release and tag
+        run: |
+          gh release delete v${{ env.VERSION }} --cleanup-tag --yes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Upload CertSquirt binary + audit log
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
@@ -156,3 +162,25 @@ jobs:
             certsquirt/certsquirt-linux-amd64
             certsquirt/certsquirt-linux-arm64
             certsquirt/harden-runner-log.json
+
+
+      - name: Delete existing release and tag
+        if: github.ref == 'refs/heads/main'
+        run: |
+          gh release delete "v${VERSION}" --cleanup-tag --yes || echo "No existing release to delete"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ env.VERSION }}
+
+      - name: Create new release and upload assets
+        if: github.ref == 'refs/heads/main'
+        run: |
+          gh release create "v${VERSION}" \
+            --title "Release v${VERSION}" \
+            --notes "Automated release for version ${VERSION}" \
+            certsquirt/certsquirt-linux-amd64 \
+            certsquirt/certsquirt-linux-arm64 \
+            certsquirt/harden-runner-log.json
+  env:
+    GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    VERSION: ${{ env.VERSION }}
