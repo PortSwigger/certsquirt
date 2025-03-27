@@ -54,6 +54,7 @@ jobs:
             production.cloudflare.docker.com:443
             proxy.golang.org:443
             registry-1.docker.io:443
+            motd.ubuntu.com:80
             security.ubuntu.com:80
             ports.ubuntu.com:80
             storage.googleapis.com:443
