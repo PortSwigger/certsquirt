@@ -170,13 +170,11 @@ jobs:
 
       - name: Upload release assets
         run: |
-          gh release delete "v${VERSION}" --cleanup-tag --yes || echo "No existing release to delete"
-          gh release create "v${VERSION}" \
-            --title "Release v${VERSION}" \
-            --notes "Automated release for version ${VERSION}" \
+          gh release delete "v${{ env.VERSION }}" --cleanup-tag --yes || echo "No existing release to delete"
+          gh release create "v${{ env.VERSION }}" \
+            --title "Release v${{ env.VERSION }}" \
+            --generate-notes \
             certsquirt-linux-amd64 \
             certsquirt-linux-arm64
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ env.VERSION }}
-
