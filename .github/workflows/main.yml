@@ -62,6 +62,7 @@ jobs:
             storage.googleapis.com:443
             uploads.github.com:443
             fulcio.sigstore.dev:443
+            rekor.sigstore.dev:443
 
       - name: Cache Go modules
         uses: actions/cache@v3
