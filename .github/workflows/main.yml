@@ -55,6 +55,7 @@ jobs:
             proxy.golang.org:443
             registry-1.docker.io:443
             security.ubuntu.com:80
+            ports.ubuntu.com:80
             storage.googleapis.com:443
             uploads.github.com:443
 
