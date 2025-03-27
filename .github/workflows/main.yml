@@ -31,10 +31,15 @@ jobs:
           echo "PLATFORM_TAG=$(echo "$platform" | sed 's|/|-|')" >> $GITHUB_ENV
           echo "SHORT_SHA=$(echo '${{ github.sha }}' | cut -c1-7)" >> $GITHUB_ENV
 
+#      - name: Harden Runner
+#        uses: step-security/harden-runner@v2.10.2
+#        with:
+#          egress-policy: audit
+
       - name: Harden Runner
-        uses: step-security/harden-runner@v2.10.2
+        uses: step-security/harden-runner@446798f8213ac2e75931c1b0769676d927801858 # v2.10.0
         with:
-          egress-policy: audit
+          egress-policy: block
           allowed-endpoints: >
             api.github.com:443
             archive.ubuntu.com:80
@@ -51,6 +56,7 @@ jobs:
             registry-1.docker.io:443
             security.ubuntu.com:80
             storage.googleapis.com:443
+            uploads.github.com:443
 
       - name: Cache Go modules
         uses: actions/cache@v3
