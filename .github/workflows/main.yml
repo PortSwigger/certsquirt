@@ -139,31 +139,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Delete existing assets from release
-        uses: dev-drprasad/delete-tag-and-release@v0.2.0
-        with:
-          tag_name: v${{ env.VERSION }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Delete existing release and tag
-        run: |
-          gh release delete v${{ env.VERSION }} --cleanup-tag --yes
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload CertSquirt binary + audit log
-        if: github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ env.VERSION }}
-          name: Release v${{ env.VERSION }}
-          generate_release_notes: true
-          files: |
-            certsquirt/certsquirt-linux-amd64
-            certsquirt/certsquirt-linux-arm64
-            certsquirt/harden-runner-log.json
-
-
       - name: Delete existing release and tag
         if: github.ref == 'refs/heads/main'
         run: |
@@ -181,6 +156,6 @@ jobs:
             certsquirt/certsquirt-linux-amd64 \
             certsquirt/certsquirt-linux-arm64 \
             certsquirt/harden-runner-log.json
-  env:
-    GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    VERSION: ${{ env.VERSION }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ env.VERSION }}
