@@ -180,6 +180,9 @@ jobs:
 
       - name: Upload release assets
         run: |
+          pwd && ls
+          echo version=$VERSION
+          echo version2=${{ env.VERSION }}
           gh release delete "v${{ env.VERSION }}" --cleanup-tag --yes || echo "No existing release to delete"
           gh release create "v${{ env.VERSION }}" \
             --title "Release v${{ env.VERSION }}" \
