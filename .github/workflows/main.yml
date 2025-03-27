@@ -135,6 +135,7 @@ jobs:
 
       - name: Build and push Docker image (${{ matrix.platform }})
         uses: docker/build-push-action@v5
+        id: push
         with:
           context: ./
           platforms: ${{ matrix.platform }}
@@ -155,6 +156,9 @@ jobs:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
+
+      - name: Debug image digest
+        run: echo "Digest ${{ steps.push.outputs.digest }}"
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
