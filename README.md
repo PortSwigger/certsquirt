@@ -1,11 +1,11 @@
 # A golang PKI in just over a 1000 lines of code.
 
-[![Build](https://github.com/portswigger/certsquirt/actions/workflows/release.yml/badge.svg)](https://github.com/portswigger/certsquirt/actions)
+[![Build Status](https://github.com/PortSwigger/certsquirt/actions/workflows/main.yml/badge.svg)](https://github.com/PortSwigger/certsquirt/actions/workflows/main.yml)
 [![GHCR](https://img.shields.io/badge/GHCR-certsquirt-blue?logo=docker)](https://github.com/orgs/portswigger/packages/container/package/certsquirt)
 [![Latest Release](https://img.shields.io/github/v/release/portswigger/certsquirt)](https://github.com/portswigger/certsquirt/releases)
 [![License](https://img.shields.io/github/license/portswigger/certsquirt)](LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/portswigger/certsquirt)](https://goreportcard.com/report/github.com/portswigger/certsquirt)
-[![CodeQL](https://github.com/PortSwigger/certsquirt/actions/workflows/github-code-scanning/codeql.yml/badge.svg)](https://github.com/PortSwigger/certsquirt/actions/workflows/github-code-scanning/codeql.yml)
+[![CodeQL](https://github.com/PortSwigger/certsquirt/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/PortSwigger/certsquirt/actions/workflows/github-code-scanning/codeql/)
 
 # Introduction
 
