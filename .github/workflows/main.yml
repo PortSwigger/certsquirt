@@ -80,9 +80,7 @@ jobs:
       - name: Build CertSquirt with version info
         run: |
           cd certsquirt
-          go build -v -ldflags "-X main.buildstamp=$(date -u '+%Y-%m-%d_%I:%M:%S%p') -X main.githash=$(git rev-parse HEAD)" -o certsquirt
-          # copy the binary ready for upload release...
-          cp certsquirt certsquirt-${{ env.PLATFORM_TAG }}
+          go build -v -ldflags "-X main.buildstamp=$(date -u '+%Y-%m-%d_%I:%M:%S%p') -X main.githash=$(git rev-parse HEAD)" -o ../certsquirt-${{ env.PLATFORM_TAG }}
 
       - name: Install aws-sdk-cpp
         id: vcpkg
@@ -140,25 +138,45 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Delete existing release and tag
-        if: github.ref == 'refs/heads/main'
-        run: |
-          cd certsquirt && \
-          gh release delete "v${VERSION}" --cleanup-tag --yes || echo "No existing release to delete"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ env.VERSION }}
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: certsquirt-${{ env.PLATFORM_TAG }}
+          path: certsquirt-${{ env.PLATFORM_TAG }}
 
-      - name: Create new release and upload assets
-        if: github.ref == 'refs/heads/main'
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout full repo for GH CLI
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version from file
+        run: echo "VERSION=$(cat certsquirt/VERSION)" >> $GITHUB_ENV
+
+      - name: Download all binary artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Move artifacts to root
         run: |
-          cd certsquirt && \
+          mv ./artifacts/certsquirt-linux-amd64/certsquirt-linux-amd64 ./
+          mv ./artifacts/certsquirt-linux-arm64/certsquirt-linux-arm64 ./
+
+      - name: Upload release assets
+        run: |
+          gh release delete "v${VERSION}" --cleanup-tag --yes || echo "No existing release to delete"
           gh release create "v${VERSION}" \
             --title "Release v${VERSION}" \
             --notes "Automated release for version ${VERSION}" \
             certsquirt-linux-amd64 \
-            certsquirt-linux-arm64 \
-            certsquirt/harden-runner-log.json
+            certsquirt-linux-arm64
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ env.VERSION }}
+
