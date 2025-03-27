@@ -76,8 +76,10 @@ jobs:
           path: certsquirt
 
       - name: Read version from file
-        id: version
+        id: get_version
         run: echo "VERSION=$(cat certsquirt/VERSION)" >> $GITHUB_ENV
+        outputs:
+          version: ${{ steps.get_version.outputs.version }}
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -155,15 +157,15 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - name: Checkout full repo for GH CLI
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Read version from file
-        run: echo "VERSION=$(cat certsquirt/certsquirt/VERSION)" >> $GITHUB_ENV
 
       - name: Download all binary artifacts
         uses: actions/download-artifact@v4
@@ -183,5 +185,3 @@ jobs:
             --generate-notes \
             certsquirt-linux-amd64 \
             certsquirt-linux-arm64
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
