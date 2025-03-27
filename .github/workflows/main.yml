@@ -78,8 +78,6 @@ jobs:
       - name: Read version from file
         id: get_version
         run: echo "VERSION=$(cat certsquirt/VERSION)" >> $GITHUB_ENV
-        outputs:
-          version: ${{ steps.get_version.outputs.version }}
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -152,6 +150,9 @@ jobs:
         with:
           name: certsquirt-${{ env.PLATFORM_TAG }}
           path: certsquirt-${{ env.PLATFORM_TAG }}
+
+  outputs:
+    version: ${{ steps.get_version.outputs.version }}
 
   release:
     needs: build
