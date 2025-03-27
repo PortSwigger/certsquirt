@@ -150,7 +150,6 @@ jobs:
         with:
           name: certsquirt-${{ env.PLATFORM_TAG }}
           path: certsquirt-${{ env.PLATFORM_TAG }}
-
   outputs:
     version: ${{ steps.get_version.outputs.version }}
 
