@@ -81,7 +81,7 @@ jobs:
           cd certsquirt
           go build -v -ldflags "-X main.buildstamp=$(date -u '+%Y-%m-%d_%I:%M:%S%p') -X main.githash=$(git rev-parse HEAD)" -o certsquirt
           # copy the binary ready for upload release...
-          cp certsquirt certsquirt-${{ env.PLATFORM_TAG }}-${{ env.SHORT_SHA }}
+          cp certsquirt certsquirt-${{ env.PLATFORM_TAG }}
 
       - name: Install aws-sdk-cpp
         id: vcpkg
@@ -139,6 +139,12 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Delete existing assets from release
+        uses: dev-drprasad/delete-tag-and-release@v0.2.0
+        with:
+          tag_name: v${{ env.VERSION }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Upload CertSquirt binary + audit log
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
@@ -147,5 +153,6 @@ jobs:
           name: Release v${{ env.VERSION }}
           generate_release_notes: true
           files: |
-            certsquirt/certsquirt-${{ env.PLATFORM_TAG }}-${{ env.SHORT_SHA }}
+            certsquirt/certsquirt-linux-amd64
+            certsquirt/certsquirt-linux-arm64
             certsquirt/harden-runner-log.json
