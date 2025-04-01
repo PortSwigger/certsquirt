@@ -5,7 +5,7 @@ import (
 	"errors"
 	"log"
 
-	"github.com/ThalesIgnite/crypto11"
+	"github.com/ThalesGroup/crypto11"
 )
 
 func initPkcs11(pubkey *rsa.PublicKey) (signer crypto11.Signer, err error) {

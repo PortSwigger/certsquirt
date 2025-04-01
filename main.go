@@ -181,7 +181,7 @@ func main() {
 		signer, err := initPkcs11(signingCert.PublicKey.(*rsa.PublicKey))
 		if err != nil {
 			log.Printf("FATAL: Could not not configure p11 - did you create or specify the configuration file, ")
-			log.Printf("FATAL: as detailed at https://pkg.go.dev/github.com/ThalesIgnite/crypto11#ConfigureFromFile ?")
+			log.Printf("FATAL: as detailed at https://pkg.go.dev/github.com/ThalesGroup/crypto11#ConfigureFromFile ?")
 			log.Printf("FATAL: Starting at Layer 1, if you are using a yubikey or hardware token, is it plugged in??")
 			log.Printf("FATAL: *** Check if the configured pkcs11 library (%v) is accessible?", config.Path)
 			log.Fatalf("FATAL: %v", err)
