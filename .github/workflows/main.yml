@@ -94,7 +94,8 @@ jobs:
           cd certsquirt
           go build -v -ldflags "-X main.buildstamp=$(date -u '+%Y-%m-%d_%I:%M:%S%p') -X main.githash=$(git rev-parse HEAD)" -o ../certsquirt-${{ env.PLATFORM_TAG }}
           #go build -v -ldflags "-X main.buildstamp=$(date -u '+%Y-%m-%d_%I:%M:%S%p') -X main.githash=$(git rev-parse HEAD)" -o ../certsquirt
-          cp certsquirt-${{ env.PLATFORM_TAG }} certsquirt/certsquirt
+          # cp certsquirt-${{ env.PLATFORM_TAG }} certsquirt/certsquirt
+          cp ../certsquirt-${{ env.PLATFORM_TAG }} certsquirt/certsquirt
           
       - name: Install aws-sdk-cpp
         id: vcpkg
