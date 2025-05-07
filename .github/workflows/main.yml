@@ -92,8 +92,8 @@ jobs:
       - name: Build CertSquirt with version info
         run: |
           cd certsquirt
-          go build -v -ldflags "-X main.buildstamp=$(date -u '+%Y-%m-%d_%I:%M:%S%p') -X main.githash=$(git rev-parse HEAD)" -o ../certsquirt-${{ env.PLATFORM_TAG }}
-
+          #go build -v -ldflags "-X main.buildstamp=$(date -u '+%Y-%m-%d_%I:%M:%S%p') -X main.githash=$(git rev-parse HEAD)" -o ../certsquirt-${{ env.PLATFORM_TAG }}
+          go build -v -ldflags "-X main.buildstamp=$(date -u '+%Y-%m-%d_%I:%M:%S%p') -X main.githash=$(git rev-parse HEAD)" -o ../certsquirt
       - name: Install aws-sdk-cpp
         id: vcpkg
         uses: johnwason/vcpkg-action@v6
