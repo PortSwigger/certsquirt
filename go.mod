@@ -8,7 +8,7 @@ require (
 	github.com/ThalesGroup/crypto11 v1.4.1
 	github.com/aws/aws-sdk-go v1.55.7
 	github.com/pkg/errors v0.9.1
-	github.com/pquerna/otp v1.4.0
+	github.com/pquerna/otp v1.5.0
 	github.com/sethvargo/go-password v0.3.1
 	golang.org/x/term v0.32.0
 )
