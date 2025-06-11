@@ -175,6 +175,11 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      attestations: write
     if: github.ref == 'refs/heads/main'
     env:
       VERSION: ${{ needs.build.outputs.version }}
