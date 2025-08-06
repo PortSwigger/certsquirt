@@ -99,19 +99,46 @@ jobs:
         with:
           go-version: 'stable'
 
-      - name: Build CertSquirt with version info
+      - name: Set architecture variables
+        id: arch-vars
         run: |
-          cd certsquirt
-          CGO_ENABLED=1 go build -v -ldflags "-X main.buildstamp=$(date -u '+%Y-%m-%d_%I:%M:%S%p') -X main.githash=$(git rev-parse HEAD)" -o ../certsquirt-${{ env.PLATFORM_TAG }}
-          cp ../certsquirt-${{ env.PLATFORM_TAG }} ./certsquirt
+          case "${{ matrix.platform }}" in
+            "linux/amd64")
+              echo "GOOS=linux" >> $GITHUB_ENV
+              echo "GOARCH=amd64" >> $GITHUB_ENV
+              echo "VCPKG_TRIPLET=x64-linux-dynamic" >> $GITHUB_ENV
+              echo "CC=gcc" >> $GITHUB_ENV
+              echo "CXX=g++" >> $GITHUB_ENV
+              ;;
+            "linux/arm64")  
+              echo "GOOS=linux" >> $GITHUB_ENV
+              echo "GOARCH=arm64" >> $GITHUB_ENV
+              echo "VCPKG_TRIPLET=arm64-linux-dynamic" >> $GITHUB_ENV
+              echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+              echo "CXX=aarch64-linux-gnu-g++" >> $GITHUB_ENV
+              ;;
+          esac
+
+      - name: Install cross-compilation tools for ARM64
+        if: matrix.platform == 'linux/arm64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
           
       - name: Install aws-sdk-cpp
         id: vcpkg
         uses: johnwason/vcpkg-action@v6
         with:
           pkgs: aws-sdk-cpp[kms] aws-sdk-cpp[acm-pca]
-          triplet: x64-linux-dynamic
+          triplet: ${{ env.VCPKG_TRIPLET }}
           token: ${{ github.token }}
+
+      - name: Build CertSquirt with version info
+        run: |
+          cd certsquirt
+          echo "Building for GOOS=$GOOS GOARCH=$GOARCH with CC=$CC CXX=$CXX"
+          CGO_ENABLED=1 go build -v -ldflags "-X main.buildstamp=$(date -u '+%Y-%m-%d_%I:%M:%S%p') -X main.githash=$(git rev-parse HEAD)" -o ../certsquirt-${{ env.PLATFORM_TAG }}
+          cp ../certsquirt-${{ env.PLATFORM_TAG }} ./certsquirt
 
       - name: Checkout aws-kms-pkcs11
         uses: actions/checkout@v4
@@ -138,13 +165,33 @@ jobs:
 
       - name: Install build dependencies
         if: steps.cache-aws-kms.outputs.cache-hit != 'true'
-        uses: ConorMacBride/install-package@v1
-        with:
-          apt: build-essential libjson-c-dev libp11-kit-dev libcurl4 libcurl4-openssl-dev
+        run: |
+          sudo apt-get update
+          if [ "${{ matrix.platform }}" = "linux/arm64" ]; then
+            sudo apt-get install -y build-essential libjson-c-dev:arm64 libp11-kit-dev:arm64 libcurl4-openssl-dev:arm64
+            # Enable cross-architecture packages
+            sudo dpkg --add-architecture arm64
+            sudo apt-get update
+          else
+            sudo apt-get install -y build-essential libjson-c-dev libp11-kit-dev libcurl4-openssl-dev
+          fi
+
+      - name: Set vcpkg architecture path
+        run: |
+          case "${{ matrix.platform }}" in
+            "linux/amd64")
+              echo "VCPKG_INSTALLED_PATH=${{ github.workspace }}/vcpkg/installed/x64-linux-dynamic" >> $GITHUB_ENV
+              ;;
+            "linux/arm64")  
+              echo "VCPKG_INSTALLED_PATH=${{ github.workspace }}/vcpkg/installed/arm64-linux-dynamic" >> $GITHUB_ENV
+              ;;
+          esac
 
       - name: Build aws-kms-pkcs11
         if: steps.cache-aws-kms.outputs.cache-hit != 'true'
-        run: cd aws-kms-pkcs11 && AWS_SDK_PATH=${{ github.workspace }}/vcpkg/installed/x64-linux-dynamic make
+        run: |
+          cd aws-kms-pkcs11
+          AWS_SDK_PATH="${{ env.VCPKG_INSTALLED_PATH }}" make CC="${{ env.CC }}" CXX="${{ env.CXX }}"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
