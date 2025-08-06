@@ -6,7 +6,7 @@ toolchain go1.24.1
 
 require (
 	github.com/ThalesGroup/crypto11 v1.4.1
-	github.com/aws/aws-sdk-go v1.55.7
+	github.com/aws/aws-sdk-go v1.55.8
 	github.com/pkg/errors v0.9.1
 	github.com/pquerna/otp v1.5.0
 	github.com/sethvargo/go-password v0.3.1
