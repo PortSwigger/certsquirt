@@ -8,7 +8,6 @@ import (
 	"encoding/pem"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 	"time"
@@ -41,6 +40,10 @@ type Config struct {
 	Pin            string `json:"P11Pin"`
 	SlotNumber     int    `json:"P11Slot"`
 	SigningCert    string `json:""`
+	// Logging configuration
+	LogLevel       string `json:"LogLevel,omitempty"`       // DEBUG, INFO, WARN, ERROR
+	LogFormat      string `json:"LogFormat,omitempty"`      // json or text
+	AuditLogFile   string `json:"AuditLogFile,omitempty"`   // path to audit log file
 }
 
 var config Config
@@ -58,8 +61,6 @@ var version string
 
 func main() {
 	var err error
-	/* Log better */
-	log.SetFlags(log.LstdFlags | log.Ldate | log.Lmicroseconds | log.Lshortfile)
 	// Root CA Based operations
 	flag.BoolVar(&flCA, "ca", false, "create a ca.  also requires -bootstrap to confirm.")
 	flag.BoolVar(&flBootstrap, "bootstrap", false, "required to confirm you really want to bootstrap the ca.  you almost certainly don't want to do this.")
@@ -85,10 +86,18 @@ func main() {
 	flag.BoolVar(&flShowVersion, "version", false, "Show version information, and quit.")
 	flag.Parse()
 	if flShowVersion {
+		// Initialize basic logging for version output
+		InitLogging(LogConfig{Level: "INFO", Format: "text"}, flDebug)
+		logger := GetLogger()
 		if buildstamp != "" && githash != "" {
-			log.Printf("VERSION: Running version %v built at %v. (githash: %v)", version, buildstamp, githash)
+			logger.Info("Version information",
+				"version", version,
+				"buildstamp", buildstamp,
+				"githash", githash)
 		} else {
-			log.Printf("VERSION: Running release version %v", version)
+			logger.Info("Version information",
+				"version", version,
+				"type", "release")
 		}
 		os.Exit(0)
 	}
@@ -100,27 +109,68 @@ func main() {
 	// try and load our config file from some locations....
 	var confFile string
 	if flConfig != "config.json" { // user has overridden default
-		log.Printf("INFO: Using %v as my config, as specified on command line arguments", flConfig)
 		confFile = flConfig
+		// Will log after logger is initialized
 	} else if _, err := os.Stat(os.Getenv("XDG_CONFIG_HOME") + "/.certsquirt/config.json"); err == nil {
-		log.Printf("INFO: Using configuration found in %v", os.Getenv("XDG_CONFIG_HOME")+"/.certsquirt/config.json")
 		confFile = os.Getenv("XDG_CONFIG_HOME") + "/.certsquirt/config.json"
 	} else if _, err := os.Stat("config.json"); err == nil {
-		log.Printf("INFO: Using config.json in current directory.")
 		confFile = "config.json"
 	} else {
-		log.Fatalf("FATAL: I can't find my configuration file, specify one with -config argument (default: %v)", flConfig)
+		// Initialize basic logging for error output before config is loaded
+		InitLogging(LogConfig{Level: "ERROR", Format: "text"}, false)
+		logger := GetLogger()
+		logger.Error("Cannot find configuration file", 
+			"default_config", flConfig,
+			"suggestion", "specify config file with -config argument")
+		os.Exit(1)
 	}
 	confJson, err := os.ReadFile(confFile)
 	if err != nil {
-		log.Fatalf("FATAL: Couldn't open config file %v (%v)", confFile, err)
+		// Initialize basic logging for error output before config is loaded
+		InitLogging(LogConfig{Level: "ERROR", Format: "text"}, false)
+		logger := GetLogger()
+		logger.Error("Cannot open configuration file", 
+			"error", err, 
+			"config_file", confFile)
+		os.Exit(1)
 	}
 	err = json.Unmarshal(confJson, &config)
 	if err != nil {
-		log.Fatalf("FATAL: malformed config file %v (%v)", confFile, err)
+		// Initialize basic logging for error output before config is loaded  
+		InitLogging(LogConfig{Level: "ERROR", Format: "text"}, false)
+		logger := GetLogger()
+		logger.Error("Malformed configuration file", 
+			"error", err, 
+			"config_file", confFile)
+		os.Exit(1)
 	}
+	
+	// Initialize structured logging
+	logConfig := LogConfig{
+		Level:     config.LogLevel,
+		Format:    config.LogFormat,
+		AuditFile: config.AuditLogFile,
+	}
+	InitLogging(logConfig, flDebug)
+	
+	logger := GetLogger()
+	
+	// Log which config file is being used
+	if flConfig != "config.json" {
+		logger.Info("Using config file specified on command line", 
+			"config_file", confFile)
+	} else if confFile == os.Getenv("XDG_CONFIG_HOME")+"/.certsquirt/config.json" {
+		logger.Info("Using XDG config directory", 
+			"config_file", confFile)
+	} else {
+		logger.Info("Using config file from current directory", 
+			"config_file", confFile)
+	}
+	
 	if flDebug {
-		log.Printf("DEBUG: Config is %#v (config file used is %v)", config, confFile)
+		logger.Debug("Configuration loaded successfully", 
+			"config_file", confFile,
+			"config", config)
 	}
 	if flCaCertFile == "" && config.SigningCert != "" {
 		// set flCaCertFile to use the defined file in the json config
@@ -129,23 +179,33 @@ func main() {
 
 	// right logically go through what the user might want to do...
 	if flCSR != "" {
-		log.Printf("Inspecting csr in file %v", flCSR)
+		logger.Info("Inspecting certificate signing request", "csr_file", flCSR)
 		csr, err := loadCSR(flCSR)
 		if err != nil {
-			log.Fatalf("ERROR: csr looks bad (%v)", err)
+			logger.Error("Certificate signing request is invalid", "error", err, "csr_file", flCSR)
+			os.Exit(1)
 		}
 		// right.  don;t make a fatal mistake.
 		err = csr.CheckSignature()
 		if err != nil {
-			log.Fatalf("DANGER: SIGNATURE MISMATCH ON CSR.  REFUSING TO CONTINUE.")
+			logger.Error("SIGNATURE MISMATCH ON CSR - REFUSING TO CONTINUE", 
+				"csr_file", flCSR, 
+				"error", err)
+			AuditEvent("csr_validation", false, 
+				"csr_file", flCSR,
+				"reason", "signature_mismatch")
+			os.Exit(1)
 		}
+		AuditEvent("csr_validation", true, 
+			"csr_file", flCSR,
+			"subject", csr.Subject.CommonName)
 		prettyPrintCSR(csr)
 		if !flSubCa && !flSign {
 			os.Exit(0)
 		}
 	}
 	if !flCA && !flSubCa && !flSign && flCSR == "" {
-		log.Printf("You haven't told me to do anything sensible.  Try -help")
+		logger.Info("No operation specified - use -help for available options")
 		usage()
 		os.Exit(0)
 	}
@@ -165,162 +225,297 @@ func main() {
 
 	// most likely we're being used to simply sign a csr, so start there...
 	if flSign && flCSR != "" {
-		// func signCSR(ctx crypto11.Context, csr *x509.CertificateRequest) (crtBytes []byte, err error)
+		logger.Info("Starting certificate signing operation", 
+			"csr_file", flCSR,
+			"ca_cert", flCaCertFile)
+		
 		csr, err := loadCSR(flCSR)
 		if err != nil {
-			log.Fatalf("FATAL: I can't load this csr (%v)", err)
+			logger.Error("Cannot load certificate signing request", 
+				"error", err, 
+				"csr_file", flCSR)
+			os.Exit(1)
 		}
 		if flCaCertFile == "" {
-			log.Fatalf("FATAL: Please provide the *signing* CA certificate via the -cacert flag.")
+			logger.Error("No signing CA certificate provided - use -cacert flag")
+			os.Exit(1)
 		}
 
 		signingCert, err := loadPemCert(flCaCertFile)
 		if err != nil {
-			log.Fatalf("FATAL: Couldn't load CA x509 certificate from %v", flCaCertFile)
+			logger.Error("Cannot load CA certificate", 
+				"error", err, 
+				"ca_cert_file", flCaCertFile)
+			os.Exit(1)
 		}
 		signer, err := initPkcs11(signingCert.PublicKey.(*rsa.PublicKey))
 		if err != nil {
-			log.Printf("FATAL: Could not not configure p11 - did you create or specify the configuration file, ")
-			log.Printf("FATAL: as detailed at https://pkg.go.dev/github.com/ThalesGroup/crypto11#ConfigureFromFile ?")
-			log.Printf("FATAL: Starting at Layer 1, if you are using a yubikey or hardware token, is it plugged in??")
-			log.Printf("FATAL: *** Check if the configured pkcs11 library (%v) is accessible?", config.Path)
-			log.Fatalf("FATAL: %v", err)
+			logger.Error("PKCS11 configuration failed", 
+				"error", err,
+				"library_path", config.Path,
+				"suggestions", []string{
+					"Verify PKCS11 configuration file exists",
+					"Check if hardware token is connected",
+					"Confirm PKCS11 library path is accessible",
+				})
+			AuditEvent("pkcs11_init", false, 
+				"error", err.Error(),
+				"library_path", config.Path)
+			os.Exit(1)
 		}
+		
+		AuditEvent("certificate_signing_started", true,
+			"csr_subject", csr.Subject.CommonName,
+			"ca_subject", signingCert.Subject.CommonName)
+			
 		crtBytes, err := signCSR(signer, csr)
 		if err != nil {
-			log.Fatalf("FATAL: %v", err)
+			logger.Error("Certificate signing failed", 
+				"error", err,
+				"csr_subject", csr.Subject.CommonName)
+			AuditEvent("certificate_signing", false,
+				"csr_subject", csr.Subject.CommonName,
+				"error", err.Error())
+			os.Exit(1)
 		}
-		log.Printf("INFO: Writing pem certificate to %v.pem", csr.Subject.CommonName)
-		err = certToPem(crtBytes, csr.Subject.CommonName+".pem")
+		
+		certFilename := csr.Subject.CommonName
+		logger.Info("Writing certificate files", 
+			"subject", csr.Subject.CommonName,
+			"pem_file", certFilename+".pem",
+			"crt_file", certFilename+".crt")
+			
+		err = certToPem(crtBytes, certFilename+".pem")
 		if err != nil {
-			log.Fatalf("ERROR: couldn't save %v.pem file! (%v)", csr.Subject.CommonName, err)
+			logger.Error("Cannot save PEM certificate file", 
+				"error", err, 
+				"filename", certFilename+".pem")
+			os.Exit(1)
 		}
-		log.Printf("INFO: Writing crt certificate to %v.crt", csr.Subject.CommonName)
-		err = os.WriteFile(csr.Subject.CommonName+".crt", crtBytes, 0644)
+		err = os.WriteFile(certFilename+".crt", crtBytes, 0644)
 		if err != nil {
-			log.Fatalf("ERROR: couldn't save %v.crt file! (%v)", csr.Subject.CommonName, err)
+			logger.Error("Cannot save CRT certificate file", 
+				"error", err, 
+				"filename", certFilename+".crt")
+			os.Exit(1)
 		}
+		
+		AuditEvent("certificate_signing", true,
+			"csr_subject", csr.Subject.CommonName,
+			"ca_subject", signingCert.Subject.CommonName,
+			"pem_file", certFilename+".pem",
+			"crt_file", certFilename+".crt")
+			
+		logger.Info("Certificate signed successfully", 
+			"subject", csr.Subject.CommonName,
+			"pem_file", certFilename+".pem",
+			"crt_file", certFilename+".crt")
 		os.Exit(0)
 	}
 	// catch a missing public key
 	if flCA && flBootstrap && flPubKey == "" {
-		log.Fatalf("FATAL: you need to pass in a public key for this operation via -pubkey")
+		logger.Error("Public key required for root CA bootstrap operation - use -pubkey flag")
+		os.Exit(1)
 	}
 	if flCA && flBootstrap && flPubKey != "" {
-		log.Printf("***************** WARNING ***************")
-		log.Printf("****  DO NOT PROCEED UNLESS YOU ARE  ****")
-		log.Printf("*** ABSOLUTELY SURE YOU WANT TO MINT ****")
-		log.Printf("***   A NEW ROOT CA.  Hit Ctrl+c to  ****")
-		log.Printf("***       CANCEL THIS OPERATION      ****")
-		log.Printf("***************** WARNING ***************")
-		log.Printf("")
-		log.Printf("    ....Sleeping for 5 seconds....")
+		logger.Warn("ROOT CA BOOTSTRAP OPERATION REQUESTED")
+		logger.Warn("DO NOT PROCEED UNLESS YOU ARE ABSOLUTELY SURE")
+		logger.Warn("YOU WANT TO CREATE A NEW ROOT CA")
+		logger.Warn("Hit Ctrl+C to cancel this operation")
+		logger.Info("Waiting 5 seconds before proceeding...")
 
 		time.Sleep(5 * time.Second)
 		// stop this being used in a script via `expect' or similar
 		challengeString, err := password.Generate(20, 2, 0, false, false)
 		if err != nil {
-			log.Fatalf("FATAL: could not generate challenge (%v)", err)
+			logger.Error("Cannot generate challenge string", "error", err)
+			os.Exit(1)
 		}
 		var challengeResponse string
 
-		log.Println()
-		log.Println("Enter the following text *exactly* as it is shown")
-		log.Printf("\t\t%v\n", challengeString)
+		logger.Info("Authentication challenge required")
+		logger.Info("Enter the following text *exactly* as it is shown:")
+		fmt.Printf("\t\t%v\n", challengeString)
 		fmt.Printf("\t\tRESPONSE: -> ")
 		fmt.Scanln(&challengeResponse)
 		if strings.Compare(challengeResponse, challengeString) != 0 {
-			log.Printf("INCORRECT CHALLENGE RESPONSE, BAILING OUT")
+			logger.Error("INCORRECT CHALLENGE RESPONSE - OPERATION CANCELLED")
+			AuditEvent("root_ca_bootstrap", false, 
+				"reason", "challenge_failed",
+				"pubkey_file", flPubKey)
 			os.Exit(10)
 		}
 		// flPubKey should point to a file on disk we can consume to grab out the rsa public key, to allow us to find the
 		// corresponding signer...
 		pubkey, err := loadPubKey(flPubKey)
 		if err != nil {
-			log.Fatalf("FATAL: %v", err)
+			logger.Error("Cannot load public key", "error", err, "pubkey_file", flPubKey)
+			os.Exit(1)
 		}
 		if flDebug {
-			log.Printf("DEBUG: Will attempt to load matching private key of type %T for %#v", pubkey, pubkey)
+			logger.Debug("Loading matching private key", 
+				"pubkey_type", fmt.Sprintf("%T", pubkey),
+				"pubkey_file", flPubKey)
 		}
 
 		signer, err := initPkcs11(pubkey.(*rsa.PublicKey))
 		if err != nil {
-			log.Printf("ERROR: %v", err)
-			log.Printf("INFO: This could be down to several reasons, incorrect pin, wrong slot specified, pkcs11.so library incorrectly set,")
-			log.Printf("INFO: the key doesn't exist, etc.  If using KMS try setting AWS_KMS_PKCS11_DEBUG=1 in the environment.  ")
-			log.Printf("INFO: For the Yubikey, try setting YKCS11_DBG=9 (full debug) or YKCS11_DBG=1(minimal debug).  Other libraries")
-			log.Printf("INFO: will likely have similar debugging features.")
-			log.Fatalf("FATAL: cannot continue sorry")
+			logger.Error("PKCS11 initialization failed for root CA bootstrap", 
+				"error", err,
+				"pubkey_file", flPubKey,
+				"troubleshooting", []string{
+					"Check PIN is correct",
+					"Verify slot number is correct", 
+					"Confirm PKCS11 library path",
+					"For KMS: set AWS_KMS_PKCS11_DEBUG=1",
+					"For YubiKey: set YKCS11_DBG=9 or YKCS11_DBG=1",
+				})
+			AuditEvent("root_ca_bootstrap", false,
+				"reason", "pkcs11_init_failed",
+				"pubkey_file", flPubKey,
+				"error", err.Error())
+			os.Exit(1)
 		}
+		
+		AuditEvent("root_ca_bootstrap", true,
+			"operation", "started",
+			"pubkey_file", flPubKey)
+			
 		ok := createRootCA(signer)
 		if ok {
-			log.Printf("OK: DONE!")
+			logger.Info("Root CA created successfully")
+			AuditEvent("root_ca_bootstrap", true,
+				"operation", "completed",
+				"pubkey_file", flPubKey)
 			os.Exit(0)
 		} else {
-			log.Fatalf("FATAL: Something unexpected went wrong...")
+			logger.Error("Root CA creation failed unexpectedly")
+			AuditEvent("root_ca_bootstrap", false,
+				"reason", "creation_failed",
+				"pubkey_file", flPubKey)
+			os.Exit(1)
 		}
 	}
 	if flSubCa && flPubKey != "" && !flGenPrivKey {
 		if flInterName == "" {
-			log.Fatalf("ERROR: You need to pass a 'friendly' name for this CA via the -subcaname option (e.g. -subcaname 'Apple TV Devices') ")
+			logger.Error("SubCA friendly name required - use -subcaname flag (e.g. -subcaname 'Apple TV Devices')")
+			os.Exit(1)
 		}
 		if flCaCertFile == "" {
-			log.Fatalf("FATAL: Please provide the *signing* CA certificate via the -cacert flag.")
+			logger.Error("Signing CA certificate required - use -cacert flag")
+			os.Exit(1)
 		}
+
+		logger.Info("Creating intermediate CA certificate",
+			"subca_name", flInterName,
+			"pubkey_file", flPubKey,
+			"ca_cert_file", flCaCertFile)
 
 		pubkey, err := loadPubKey(flPubKey)
 		if err != nil {
-			log.Fatalf("FATAL: %v", err)
+			logger.Error("Cannot load public key for SubCA", 
+				"error", err, 
+				"pubkey_file", flPubKey)
+			os.Exit(1)
 		}
 
 		signingCert, err := loadPemCert(flCaCertFile)
 		if err != nil {
-			log.Fatalf("FATAL: Couldn't load CA x509 certificate from %v", flCaCertFile)
+			logger.Error("Cannot load signing CA certificate", 
+				"error", err, 
+				"ca_cert_file", flCaCertFile)
+			os.Exit(1)
 		}
 		signer, err := initPkcs11(signingCert.PublicKey.(*rsa.PublicKey))
+		if err != nil {
+			logger.Error("PKCS11 initialization failed for SubCA creation", 
+				"error", err)
+			AuditEvent("subca_creation", false,
+				"subca_name", flInterName,
+				"reason", "pkcs11_init_failed",
+				"error", err.Error())
+			os.Exit(1)
+		}
+		
+		AuditEvent("subca_creation", true,
+			"operation", "started",
+			"subca_name", flInterName,
+			"ca_subject", signingCert.Subject.CommonName)
+			
 		_, ok := createIntermediateCert(signer, pubkey, flInterName)
 		if !ok {
-			log.Fatalf("FATAL: When creating certificate (%v)", err)
+			logger.Error("SubCA certificate creation failed", 
+				"subca_name", flInterName)
+			AuditEvent("subca_creation", false,
+				"subca_name", flInterName,
+				"reason", "creation_failed")
+			os.Exit(1)
 		}
 	}
 
 	// perhaps we've been asked to create a new subca and generate a privkey
 	if flSubCa && flGenPrivKey && flPubKey == "" {
-		log.Fatalf("ERROR: Please pass me the signing key for this operation via -pubkey so I can figure out which one to use.")
+		logger.Error("Signing key required for SubCA with generated private key - use -pubkey flag")
+		os.Exit(1)
 	}
 	if flSubCa && flGenPrivKey && flPubKey != "" {
 		if flInterName == "" {
-			log.Fatalf("ERROR: You need to pass a 'friendly' name for this CA via the -subcaname option (e.g. -subcaname 'Apple TV Devices') ")
+			logger.Error("SubCA friendly name required - use -subcaname flag (e.g. -subcaname 'Apple TV Devices')")
+			os.Exit(1)
 		}
+		
+		logger.Info("Creating SubCA with generated private key",
+			"subca_name", flInterName,
+			"signing_key_file", flPubKey)
 		// Generate a new RSA key.
 		key, err := rsa.GenerateKey(rand.Reader, 4096)
 		if err != nil {
-			log.Fatalf("FATAL: Could not generate rsa private key (%v)", err)
+			logger.Error("Cannot generate RSA private key", "error", err)
+			os.Exit(1)
 		}
 		// this is our newly generated public key
 		newpubkey := key.Public()
 		// this is our signing public key
 		pubkey, err := loadPubKey(flPubKey)
 		if err != nil {
-			log.Fatalf("FATAL: %v", err)
+			logger.Error("Cannot load signing public key", "error", err, "pubkey_file", flPubKey)
+			os.Exit(1)
 		}
 
 		signer, err := initPkcs11(pubkey.(*rsa.PublicKey))
 		if err != nil {
-			log.Fatalf("FATAL: %v", err)
+			logger.Error("PKCS11 initialization failed", "error", err)
+			AuditEvent("subca_with_genkey", false,
+				"subca_name", flInterName,
+				"reason", "pkcs11_init_failed",
+				"error", err.Error())
+			os.Exit(1)
 		}
+		
+		AuditEvent("subca_with_genkey", true,
+			"operation", "started",
+			"subca_name", flInterName)
+			
 		caName, ok := createIntermediateCert(signer, newpubkey, flInterName)
 		if !ok {
-			log.Fatalf("FATAL: When creating certificate (%v)", err)
+			logger.Error("SubCA certificate creation failed", "subca_name", flInterName)
+			AuditEvent("subca_with_genkey", false,
+				"subca_name", flInterName,
+				"reason", "cert_creation_failed")
+			os.Exit(1)
 		}
 
 		keypassword, err = password.Generate(20, 2, 0, false, false)
 		if err != nil {
-			log.Fatalf("FATAL: could not generate password (%v)", err)
+			logger.Error("Cannot generate key password", "error", err)
+			os.Exit(1)
 		}
 		file, err := os.OpenFile(caName+".key", os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0400)
 		if err != nil {
-			log.Printf("FATAL: %v", err)
+			logger.Error("Cannot create private key file", 
+				"error", err, 
+				"filename", caName+".key")
+			os.Exit(1)
 		}
 		// write out PEM wrapped key
 		privPEMBlock, err := x509.EncryptPEMBlock(
@@ -331,22 +526,32 @@ func main() {
 			x509.PEMCipher3DES, // PEMCipherAES256 prefereable but interopability reigns supreme...
 		)
 		if err != nil {
-			log.Fatalf("FATAL: %v", err)
+			logger.Error("Cannot encrypt private key", "error", err)
+			os.Exit(1)
 		}
 		err = pem.Encode(file, privPEMBlock)
 		if err != nil {
-			log.Fatalf("FATAL: writing private key (%v)", err)
+			logger.Error("Cannot write private key file", "error", err)
+			os.Exit(1)
 		}
-		log.Println()
-		log.Printf("INFO: Done.  File %v.key is pem file containing wrapped private key.", caName)
-		log.Println()
-		log.Printf("SECRET: Private key is wrapped with this passphrase: %v", keypassword)
-		log.Println()
-		log.Printf("INFO: To convert this to PKCS12 (for use in systems that require it), try running")
-		log.Printf("\t\t\topenssl pkcs12 -export -out '%v.pkcs12' -inkey '%v.key' -in '%v.pem'", caName, caName, caName)
+		file.Close()
+		
+		logger.Info("SubCA with generated private key created successfully",
+			"ca_name", caName,
+			"key_file", caName+".key",
+			"cert_file", caName+".pem")
+		logger.Warn("PRIVATE KEY PASSPHRASE (store securely)", "passphrase", keypassword)
+		logger.Info("To convert to PKCS12 format, use:",
+			"command", fmt.Sprintf("openssl pkcs12 -export -out '%v.pkcs12' -inkey '%v.key' -in '%v.pem'", caName, caName, caName))
+			
+		AuditEvent("subca_with_genkey", true,
+			"operation", "completed",
+			"subca_name", flInterName,
+			"ca_name", caName,
+			"key_file", caName+".key")
+			
 	} else if flSubCa && !flGenPrivKey && flPubKey == "" {
-		log.Printf("ERROR: You need to pass me a pem formatted public key to use for the Sub-CA")
-		log.Printf("ERROR: Alternatively pass me the -genkey flag to have me generate the private key")
+		logger.Error("PEM formatted public key required for SubCA, or use -genkey flag to generate private key")
 	}
-	log.Printf("INFO: Clean exit.")
+	logger.Info("Operation completed successfully")
 }

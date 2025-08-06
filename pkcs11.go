@@ -3,14 +3,15 @@ package main
 import (
 	"crypto/rsa"
 	"errors"
-	"log"
+	"fmt"
 
 	"github.com/ThalesGroup/crypto11"
 )
 
 func initPkcs11(pubkey *rsa.PublicKey) (signer crypto11.Signer, err error) {
+	logger := GetLogger()
 	if flDebug {
-		log.Printf("DEBUG: init called with pubkey of type %T", pubkey)
+		logger.Debug("PKCS11 initialization", "pubkey_type", fmt.Sprintf("%T", pubkey))
 	}
 	// depending on the pkcs11 provider we need to pass these in differently.
 	// For KMS and some others , we need to find the key via the Token Label,
@@ -19,7 +20,11 @@ func initPkcs11(pubkey *rsa.PublicKey) (signer crypto11.Signer, err error) {
 	// crypto11.Config
 	var p11Config crypto11.Config
 	if flDebug {
-		log.Printf("Attempting to configure provider with these values: %#v, %#v, %#v, %#v", config.Path, config.Pin, config.TokenLabel, config.SlotNumber)
+		logger.Debug("PKCS11 provider configuration", 
+			"library_path", config.Path,
+			"pin_configured", config.Pin != "",
+			"token_label", config.TokenLabel,
+			"slot_number", config.SlotNumber)
 	}
 	if config.TokenLabel != "" {
 		p11Config = crypto11.Config{
@@ -38,38 +43,56 @@ func initPkcs11(pubkey *rsa.PublicKey) (signer crypto11.Signer, err error) {
 	}
 
 	if flDebug {
-		log.Printf("DEBUG: P11Config is %#v", p11Config)
+		logger.Debug("PKCS11 configuration created", "config", p11Config)
 	}
 	ctx, err := crypto11.Configure(&p11Config)
 	if err != nil {
+		logger.Error("PKCS11 context configuration failed", "error", err)
 		return signer, err
 	}
 	if flDebug {
-		log.Printf("DEBUG: crypto11.Context is : %#v", ctx)
+		logger.Debug("PKCS11 context created successfully")
 	}
 	signers, err := ctx.FindAllKeyPairs()
 	if err != nil {
+		logger.Error("Failed to find key pairs in PKCS11 context", "error", err)
 		return signer, err
 	}
 	if flDebug {
-		log.Printf("Signers are: %#v", signers)
+		logger.Debug("Found PKCS11 key pairs", "count", len(signers))
 	}
 	for x, y := range signers {
 		if flDebug {
-			log.Printf("Signer is a %T %#v", y.Public(), y)
+			logger.Debug("Examining signer", 
+				"index", x,
+				"public_key_type", fmt.Sprintf("%T", y.Public()))
 		}
 		switch y.Public().(type) {
 		case *rsa.PublicKey:
-			//var signingkey *rsa.PublicKey = y.Public().(*rsa.PublicKey)
 			if pubkey.Equal(y.Public()) {
-				//if signingkey.Equal(pubkey.(rsa.PublicKey)) {
+				logger.Info("Found matching PKCS11 key pair", "index", x)
+				AuditEvent("pkcs11_key_found", true,
+					"key_index", x,
+					"key_type", "RSA")
 				return signers[x], nil
 			} else {
-				log.Printf("INFO: public key mismatch, checking next key")
+				if flDebug {
+					logger.Debug("Public key mismatch, checking next key", "index", x)
+				}
 			}
 		default:
-			// do nowt.
+			if flDebug {
+				logger.Debug("Skipping non-RSA key", 
+					"index", x, 
+					"key_type", fmt.Sprintf("%T", y.Public()))
+			}
 		}
 	}
-	return signer, errors.New("something weird happened.  please file an issue at https://github.com/PortSwigger/certsquirt/issues")
+	logger.Error("No matching PKCS11 key pair found", 
+		"searched_keys", len(signers),
+		"suggestion", "verify the public key file matches a key in the PKCS11 provider")
+	AuditEvent("pkcs11_key_found", false,
+		"searched_keys", len(signers),
+		"reason", "no_matching_key")
+	return signer, errors.New("no matching key pair found in PKCS11 provider")
 }

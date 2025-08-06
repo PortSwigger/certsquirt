@@ -8,10 +8,10 @@ import (
 	"crypto/x509"
 	"encoding/asn1"
 	"fmt"
-	"log"
 	"net"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -42,10 +42,12 @@ type x509Record struct {
 }
 
 func addDbRecord(crtBytes []byte) error {
+	logger := GetLogger()
 	// now parse the cert back and add it to the DB.
 	crt, err := x509.ParseCertificate(crtBytes)
 	if err != nil {
-		log.Fatalf("FATAL: %v", err)
+		logger.Error("Cannot parse certificate for database record", "error", err)
+		return err
 	}
 	// chomp out the pub key bytes
 	var pubBytes []byte
@@ -88,12 +90,17 @@ func addDbRecord(crtBytes []byte) error {
 		Config: aws.Config{Region: aws.String(config.AwsRegion)},
 	})
 	if err != nil {
-		log.Printf("ERROR: Could not create aws session (%v)", err)
+		logger.Error("Cannot create AWS session for database", 
+			"error", err, 
+			"region", config.AwsRegion)
 		return err
 	}
 	dyndb = dynamodb.New(sess)
 	av, err := dynamodbattribute.MarshalMap(record)
 	if err != nil {
+		logger.Error("Cannot marshal certificate record for database", 
+			"error", err,
+			"subject", crt.Subject.CommonName)
 		return err
 	}
 
@@ -101,11 +108,33 @@ func addDbRecord(crtBytes []byte) error {
 		Item:      av,
 		TableName: aws.String(config.AwsDbTableName),
 	}
+	
+	logger.Debug("Adding certificate to database", 
+		"table", config.AwsDbTableName,
+		"subject", crt.Subject.CommonName,
+		"serial", crt.SerialNumber.String())
+		
 	_, err = dyndb.PutItem(input)
 	if err != nil {
-		log.Printf("ERROR: %v", err)
+		logger.Error("Cannot add certificate to database", 
+			"error", err,
+			"table", config.AwsDbTableName,
+			"subject", crt.Subject.CommonName,
+			"serial", crt.SerialNumber.String())
 		return err
 	}
 
-	return err
+	logger.Info("Certificate successfully added to database", 
+		"table", config.AwsDbTableName,
+		"subject", crt.Subject.CommonName,
+		"serial", crt.SerialNumber.String(),
+		"requester", strings.TrimSpace(record.Requester))
+		
+	AuditEvent("certificate_database_add", true,
+		"subject", crt.Subject.CommonName,
+		"serial", crt.SerialNumber.String(),
+		"table", config.AwsDbTableName,
+		"requester", strings.TrimSpace(record.Requester))
+
+	return nil
 }

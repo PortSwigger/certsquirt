@@ -11,7 +11,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"encoding/pem"
-	"log"
+	"fmt"
 	"math/big"
 	"os"
 	"time"
@@ -103,9 +103,11 @@ func newSerialNumber() (*big.Int, error) {
 // This function call should be executed precisely once, to generate the root CA.
 // This is effectively creating a 'self-signed' cert.
 func createRootCA(signer crypto11.Signer) bool {
+	logger := GetLogger()
 	id, err := GenerateSubjectKeyID(signer.Public())
 	if err != nil {
-		log.Fatalf("fatal: %v", err)
+		logger.Error("Cannot generate subject key ID for root CA", "error", err)
+		return false
 	}
 	// this should only ever be used once, well maybe twice.
 	// but definately we should have another solution by then.
@@ -144,48 +146,78 @@ func createRootCA(signer crypto11.Signer) bool {
 	// chomp chomp.
 	crtBytes, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, signer.Public().(*rsa.PublicKey), signer)
 	if err != nil {
-		log.Fatalf("FATAL: while trying to sign certificate (%v)", err)
+		logger.Error("Certificate signing failed for root CA", "error", err, "subject", name.CommonName)
+		return false
 	}
 	pemBlock := &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: crtBytes,
 	}
-	file, err := os.OpenFile(name.CommonName+".pem", os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	file, err := os.OpenFile(name.CommonName+".pem", os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
-		log.Fatalf("FATAL: trying to write %v.pem file (%v)", name.CommonName, err)
+		logger.Error("Cannot create PEM certificate file", 
+			"error", err, 
+			"filename", name.CommonName+".pem",
+			"subject", name.CommonName)
+		return false
 	}
 	defer file.Close()
 	out := pem.EncodeToMemory(pemBlock)
 	if _, err := file.Write(out); err != nil {
 		file.Close()
 		os.Remove(name.CommonName + ".pem")
-		log.Fatalf("FATAL: trying to write %v.pem file (%v)", name.CommonName, err)
+		logger.Error("Cannot write PEM certificate file", 
+			"error", err, 
+			"filename", name.CommonName+".pem",
+			"subject", name.CommonName)
+		return false
 	}
-	log.Printf("INFO: Successfully wrote out pem cert to %v.pem", name.CommonName)
+	logger.Info("Successfully wrote PEM certificate file", 
+		"filename", name.CommonName+".pem",
+		"subject", name.CommonName)
 	// now write out the DER bytes to a crt file
 	err = os.WriteFile(name.CommonName+".crt", crtBytes, 0644)
 	if err != nil {
-		log.Fatalf("FATAL: trying to write %v.crt file (%v)", name.CommonName, err)
+		logger.Error("Cannot write CRT certificate file", 
+			"error", err, 
+			"filename", name.CommonName+".crt",
+			"subject", name.CommonName)
+		return false
 	}
-	log.Printf("INFO: Successfully wrote out crt file to %v.crt", name.CommonName)
+	logger.Info("Successfully wrote CRT certificate file", 
+		"filename", name.CommonName+".crt",
+		"subject", name.CommonName)
 	err = addDbRecord(crtBytes)
 	if err != nil {
-		log.Printf("ERROR: while adding record to DB (non-fatal, but please investigate!)")
+		logger.Warn("Failed to add certificate to database - please investigate", 
+			"error", err,
+			"subject", name.CommonName)
 	}
+	
+	AuditEvent("root_ca_creation", true,
+		"subject", name.CommonName,
+		"serial", tmpl.SerialNumber.String(),
+		"not_after", tmpl.NotAfter,
+		"pem_file", name.CommonName+".pem",
+		"crt_file", name.CommonName+".crt")
+		
 	return true
 }
 
 func createIntermediateCert(signer crypto11.Signer, intpubkey crypto.PublicKey, subjectname string) (caName string, ok bool) {
+	logger := GetLogger()
 	// need to read in pubkey
 	id, err := GenerateSubjectKeyID(intpubkey)
 	if err != nil {
-		log.Fatalf("FATAL: %v", err)
+		logger.Error("Cannot generate subject key ID for intermediate CA", "error", err)
+		return "", false
 	}
 
 	// generate a unique identifier for the CA to go into the Subject name:
 	uid, err := password.Generate(6, 2, 0, false, false)
 	if err != nil {
-		log.Fatalf("FATAL: %v", err)
+		logger.Error("Cannot generate unique identifier for intermediate CA", "error", err)
+		return "", false
 	}
 	name := &pkix.Name{}
 	name.Country = []string{config.Country}
@@ -195,7 +227,8 @@ func createIntermediateCert(signer crypto11.Signer, intpubkey crypto.PublicKey, 
 
 	serialNumber, err := newSerialNumber()
 	if err != nil {
-		log.Fatalf("FATAL: Couldn't generate a serial number (%v)", err)
+		logger.Error("Cannot generate serial number for intermediate CA", "error", err)
+		return "", false
 	}
 
 	tmpl := &x509.Certificate{
@@ -230,57 +263,100 @@ func createIntermediateCert(signer crypto11.Signer, intpubkey crypto.PublicKey, 
 	// we need the upstream cert
 	if _, err := os.Stat(flCaCertFile); os.IsNotExist(err) {
 		// path/to/whatever does not exist
-		log.Fatalf("FATAL: Cannot open the Parent CA Certificate (%v)", err)
+		logger.Error("Parent CA certificate file not found", 
+			"error", err, 
+			"ca_cert_file", flCaCertFile)
+		return "", false
 	}
 
 	cacert, err := loadPemCert(flCaCertFile)
-	log.Printf("INFO: Going to attempt to sign certificate using %v", cacert.Subject.CommonName)
 	if err != nil {
-		log.Fatalf("FATAL: Cannot read CA Cert from %v (%v)", flCaCertFile, err)
+		logger.Error("Cannot read parent CA certificate", 
+			"error", err, 
+			"ca_cert_file", flCaCertFile)
+		return "", false
 	}
+	
+	logger.Info("Signing intermediate certificate", 
+		"signing_ca", cacert.Subject.CommonName,
+		"intermediate_subject", name.CommonName)
 
 	crtBytes, err := x509.CreateCertificate(rand.Reader, tmpl, cacert, intpubkey, signer)
 	if err != nil {
-		log.Fatalf("FATAL: %v", err)
+		logger.Error("Certificate signing failed for intermediate CA", 
+			"error", err,
+			"intermediate_subject", name.CommonName,
+			"signing_ca", cacert.Subject.CommonName)
+		return "", false
 	}
 	pemBlock := &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: crtBytes,
 	}
-	file, err := os.OpenFile(name.CommonName+".pem", os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	file, err := os.OpenFile(name.CommonName+".pem", os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
-		log.Fatalf("FATAL: trying to write %v.pem file (%v)", name.CommonName, err)
+		logger.Error("Cannot create PEM certificate file for intermediate CA", 
+			"error", err, 
+			"filename", name.CommonName+".pem",
+			"subject", name.CommonName)
+		return "", false
 	}
 	defer file.Close()
 	out := pem.EncodeToMemory(pemBlock)
 	if _, err := file.Write(out); err != nil {
 		file.Close()
 		os.Remove(name.CommonName + ".pem")
-		log.Fatalf("FATAL: trying to write %v.pem file (%v)", name.CommonName, err)
+		logger.Error("Cannot write PEM certificate file for intermediate CA", 
+			"error", err, 
+			"filename", name.CommonName+".pem",
+			"subject", name.CommonName)
+		return "", false
 	}
-	log.Printf("INFO: Successfully wrote out pem cert to %v.pem", name.CommonName)
+	logger.Info("Successfully wrote PEM certificate file for intermediate CA", 
+		"filename", name.CommonName+".pem",
+		"subject", name.CommonName)
 	// now write out the DER bytes to a crt file
 	err = os.WriteFile(name.CommonName+".crt", crtBytes, 0644)
 	if err != nil {
-		log.Fatalf("FATAL: trying to write %v.crt file (%v)", name.CommonName, err)
+		logger.Error("Cannot write CRT certificate file for intermediate CA", 
+			"error", err, 
+			"filename", name.CommonName+".crt",
+			"subject", name.CommonName)
+		return "", false
 	}
-	log.Printf("INFO: Successfully wrote out crt file to %v.crt", name.CommonName)
+	logger.Info("Successfully wrote CRT certificate file for intermediate CA", 
+		"filename", name.CommonName+".crt",
+		"subject", name.CommonName)
 	// now add the cert to the db
 	err = addDbRecord(crtBytes)
 	if err != nil {
-		log.Printf("WARNING: errors occured adding record to db.  Continuing anyway, but please investigate.")
+		logger.Warn("Failed to add intermediate certificate to database", 
+			"error", err,
+			"subject", name.CommonName)
 	}
+	
+	AuditEvent("intermediate_ca_creation", true,
+		"subject", name.CommonName,
+		"signing_ca", cacert.Subject.CommonName,
+		"serial", serialNumber.String(),
+		"not_after", tmpl.NotAfter,
+		"pem_file", name.CommonName+".pem",
+		"crt_file", name.CommonName+".crt")
+		
 	return name.CommonName, true
 }
 
 func signCSR(signer crypto11.Signer, csr *x509.CertificateRequest) (crtBytes []byte, err error) {
+	logger := GetLogger()
 	serialNumber, err := newSerialNumber()
 	if err != nil {
-		log.Fatalf("FATAL: Couldn't generate a serial number (%v)", err)
+		logger.Error("Cannot generate serial number for CSR certificate", "error", err)
+		return nil, err
 	}
 	id, err := GenerateSubjectKeyID(csr.PublicKey)
 	if err != nil {
-		log.Fatalf("FATAL: %v", err)
+		logger.Error("Cannot generate subject key ID for CSR certificate", "error", err)
+		return nil, err
 	}
 	// overwrite some of the values in the cert.
 	var newSubject pkix.Name
@@ -336,47 +412,79 @@ func signCSR(signer crypto11.Signer, csr *x509.CertificateRequest) (crtBytes []b
 	// we need the upstream cert
 	if _, err := os.Stat(flCaCertFile); os.IsNotExist(err) {
 		// path/to/whatever does not exist
-		log.Fatalf("FATAL: Cannot open the Parent CA Certificate (%v)", err)
+		logger.Error("Parent CA certificate file not found for CSR signing", 
+			"error", err, 
+			"ca_cert_file", flCaCertFile)
+		return nil, err
 	}
 
 	if flDebug {
-		log.Printf("DEBUG: attempting to load CA certificate from %v", flCaCertFile)
+		logger.Debug("Loading CA certificate for CSR signing", "ca_cert_file", flCaCertFile)
 	}
 	cacert, err := loadPemCert(flCaCertFile)
-	log.Printf("INFO: Going to attempt to sign certificate using %v", cacert.Subject.CommonName)
 	if err != nil {
-		log.Fatalf("FATAL: Cannot read CA Cert from %v (%v)", flCaCertFile, err)
+		logger.Error("Cannot read CA certificate for CSR signing", 
+			"error", err, 
+			"ca_cert_file", flCaCertFile)
+		return nil, err
 	}
+	
+	logger.Info("Signing certificate request", 
+		"signing_ca", cacert.Subject.CommonName,
+		"csr_subject", csr.Subject.CommonName)
 
 	if flDebug {
-		log.Printf("DEBUG: Signer is %#v", signer)
-		log.Printf("DEBUG: Target key (type %T) id is %x", id, signer.Public())
-		signerid, err := GenerateSubjectKeyID(signer.Public)
+		logger.Debug("Certificate signing details",
+			"signer_type", fmt.Sprintf("%T", signer),
+			"target_key_type", fmt.Sprintf("%T", csr.PublicKey),
+			"target_key_id", fmt.Sprintf("%x", id))
+		signerid, err := GenerateSubjectKeyID(signer.Public())
 		if err != nil {
-			log.Printf("ERROR: Signing public key is whack (%v)", err)
+			logger.Error("Cannot generate subject key ID for signing key", "error", err)
+		} else {
+			logger.Debug("Signing key details", "signer_key_id", fmt.Sprintf("%x", signerid))
 		}
-		log.Printf("DEBUG: Signer key is %x", signerid)
 	}
 
 	crtBytes, err = x509.CreateCertificate(rand.Reader, tmpl, cacert, csr.PublicKey, signer)
 	if err != nil {
-		log.Printf("ERROR: is the config file pointing to the correct CA certificate file?")
-		log.Fatalf("FATAL: Could not create/sign certificate (%v)", err)
+		logger.Error("Certificate creation/signing failed", 
+			"error", err,
+			"csr_subject", csr.Subject.CommonName,
+			"ca_subject", cacert.Subject.CommonName,
+			"suggestion", "verify config file points to correct CA certificate")
+		return nil, err
 	}
+	
+	// Add certificate to database
 	err = addDbRecord(crtBytes)
 	if err != nil {
-		log.Printf("WARNING: errors occured adding record to db.  Continuing anyway, but please investigate.")
+		logger.Warn("Failed to add certificate to database", 
+			"error", err,
+			"csr_subject", csr.Subject.CommonName)
+		// Continue anyway, don't fail the signing operation
 	}
-	log.Printf("INFO: Successfully signed!")
-	return crtBytes, err
+	
+	logger.Info("Certificate signing completed successfully", 
+		"csr_subject", csr.Subject.CommonName,
+		"ca_subject", cacert.Subject.CommonName,
+		"serial", serialNumber.String())
+		
+	AuditEvent("certificate_signed", true,
+		"csr_subject", csr.Subject.CommonName,
+		"ca_subject", cacert.Subject.CommonName,
+		"serial", serialNumber.String(),
+		"not_after", tmpl.NotAfter)
+		
+	return crtBytes, nil
 }
 
 func prettyPrintCSR(csr *x509.CertificateRequest) {
-	log.Println("")
-	log.Println("******************************************************************")
-	log.Println("***         CERTIFICATE SIGNING REQUEST INFORMATION            ***")
-	log.Println("******************************************************************")
-	log.Println("")
+	logger := GetLogger()
+	logger.Info("******************************************************************")
+	logger.Info("***         CERTIFICATE SIGNING REQUEST INFORMATION            ***") 
+	logger.Info("******************************************************************")
+	
 	switch csr.SignatureAlgorithm {
 	case x509.SHA256WithRSA:
 	case x509.SHA384WithRSA:
@@ -389,15 +497,18 @@ func prettyPrintCSR(csr *x509.CertificateRequest) {
 	case x509.SHA512WithRSAPSS:
 	case x509.PureEd25519:
 	default:
-		log.Printf("ERROR: Signature type is unsupported (%v) by this CA", csr.SignatureAlgorithm)
+		logger.Error("Signature algorithm not supported by this CA", 
+			"algorithm", csr.SignatureAlgorithm,
+			"subject", csr.Subject.CommonName)
 		os.Exit(1)
 	}
-	log.Printf("INFO: Signature algorithm \t%v is acceptable", csr.SignatureAlgorithm)
-	log.Printf("INFO: PubKey algorithm is \t%v", csr.PublicKeyAlgorithm)
-	log.Printf("INFO: Subject requested is for \t%v", csr.Subject.CommonName)
-	log.Printf("INFO: SAN Values to follow:")
-	log.Printf("INFO: \t\tDNSNames: %v", csr.DNSNames)
-	log.Printf("INFO: \t\tEmailAddresses: %v", csr.EmailAddresses)
-	log.Printf("INFO: \t\tIPAddresses: %v", csr.IPAddresses)
-	log.Printf("INFO: \t\tURIs: %v", csr.URIs)
+	
+	logger.Info("Certificate signing request details",
+		"signature_algorithm", csr.SignatureAlgorithm.String(),
+		"public_key_algorithm", csr.PublicKeyAlgorithm.String(), 
+		"subject", csr.Subject.CommonName,
+		"dns_names", csr.DNSNames,
+		"email_addresses", csr.EmailAddresses,
+		"ip_addresses", csr.IPAddresses,
+		"uris", csr.URIs)
 }
