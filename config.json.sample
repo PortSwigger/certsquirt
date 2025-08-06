@@ -19,4 +19,7 @@
     "P11TokenLabel": "your-testing-rsa-key-as-in-kms-console",
     "P11Pin": "",
     "P11Slot": 0,
+    "LogLevel": "INFO",
+    "LogFormat": "text",
+    "AuditLogFile": "/var/log/certsquirt/audit.log"
 }
