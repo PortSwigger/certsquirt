@@ -1,0 +1,58 @@
+# Git and version control
+.git/
+.gitignore
+.github/
+
+# Development and build artifacts
+*.key
+*.pem
+*.crt
+*.csr
+*.p12
+*.pkcs12
+*.tar.gz
+certsquirt-*
+!certsquirt
+
+# Documentation and examples
+README.md
+SECURITY.md
+*.md
+usage.txt
+
+# Test and development files
+test-config.json
+**/test*
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Build directories and caches
+node_modules/
+vendor/
+target/
+build/
+dist/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Config files that shouldn't be in container
+config.json
+!config.json.sample

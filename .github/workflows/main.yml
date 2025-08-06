@@ -74,6 +74,16 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
+      - name: Cache APT packages
+        uses: actions/cache@v3
+        with:
+          path: |
+            /var/cache/apt/archives
+            /var/lib/apt/lists
+          key: ${{ runner.os }}-apt-${{ hashFiles('**/Dockerfile') }}
+          restore-keys: |
+            ${{ runner.os }}-apt-
+
       - name: Checkout certsquirt
         uses: actions/checkout@v4
         with:
@@ -109,13 +119,32 @@ jobs:
         with:
           repository: "JackOfMostTrades/aws-kms-pkcs11"
           path: aws-kms-pkcs11
+          fetch-depth: 1
+
+      - name: Get aws-kms-pkcs11 commit hash
+        id: aws-kms-commit
+        run: |
+          cd aws-kms-pkcs11
+          echo "hash=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Cache aws-kms-pkcs11 build
+        id: cache-aws-kms
+        uses: actions/cache@v3
+        with:
+          path: aws-kms-pkcs11/aws_kms_pkcs11.so
+          key: ${{ runner.os }}-${{ matrix.platform }}-aws-kms-pkcs11-${{ steps.aws-kms-commit.outputs.hash }}-${{ hashFiles('**/vcpkg.json') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.platform }}-aws-kms-pkcs11-${{ steps.aws-kms-commit.outputs.hash }}-
+            ${{ runner.os }}-${{ matrix.platform }}-aws-kms-pkcs11-
 
       - name: Install build dependencies
+        if: steps.cache-aws-kms.outputs.cache-hit != 'true'
         uses: ConorMacBride/install-package@v1
         with:
           apt: build-essential libjson-c-dev libp11-kit-dev libcurl4 libcurl4-openssl-dev
 
       - name: Build aws-kms-pkcs11
+        if: steps.cache-aws-kms.outputs.cache-hit != 'true'
         run: cd aws-kms-pkcs11 && AWS_SDK_PATH=${{ github.workspace }}/vcpkg/installed/x64-linux-dynamic make
 
       - name: Set up QEMU
@@ -150,8 +179,18 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.repo_lower }}:latest
             ${{ env.REGISTRY }}/${{ env.repo_lower }}:${{ env.PLATFORM_TAG }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+            PLATFORM=${{ matrix.platform }}
+          cache-from: |
+            type=gha
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.repo_lower }}:buildcache-${{ env.PLATFORM_TAG }}
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.repo_lower }}:latest
+          cache-to: |
+            type=gha,mode=max
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.repo_lower }}:buildcache-${{ env.PLATFORM_TAG }},mode=max
+          provenance: false
+          sbom: false
 
       - name: Attest
         uses: actions/attest-build-provenance@v2
