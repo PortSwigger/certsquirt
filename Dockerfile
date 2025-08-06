@@ -5,7 +5,12 @@ FROM ubuntu:latest
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt update && apt install --no-install-recommends -y \
+    libc6 \
+    libc6-dev \
     libjson-c5 \
+    libp11-kit0 \
+    libcurl4 \
+    libssl3 \
     jq \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*

@@ -102,8 +102,7 @@ jobs:
       - name: Build CertSquirt with version info
         run: |
           cd certsquirt
-          go build -v -ldflags "-X main.buildstamp=$(date -u '+%Y-%m-%d_%I:%M:%S%p') -X main.githash=$(git rev-parse HEAD)" -o ../certsquirt-${{ env.PLATFORM_TAG }}
-          #go build -v -ldflags "-X main.buildstamp=$(date -u '+%Y-%m-%d_%I:%M:%S%p') -X main.githash=$(git rev-parse HEAD)" -o ../certsquirt
+          CGO_ENABLED=1 go build -v -ldflags "-X main.buildstamp=$(date -u '+%Y-%m-%d_%I:%M:%S%p') -X main.githash=$(git rev-parse HEAD)" -o ../certsquirt-${{ env.PLATFORM_TAG }}
           cp ../certsquirt-${{ env.PLATFORM_TAG }} ./certsquirt
           
       - name: Install aws-sdk-cpp
