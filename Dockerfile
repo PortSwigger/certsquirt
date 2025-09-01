@@ -1,22 +1,28 @@
 FROM ubuntu:latest
 
-# Install aws kms dependencies in a single layer with cache mount
-# awscli has been removed from the repo's and is now - unhelpfully - a 'snap' installed app.
+# Noninteractive to keep apt quiet in CI
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install runtime dependencies only (no -dev packages)
+# Use BuildKit cache mounts for speedy rebuilds
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt update && apt install --no-install-recommends -y \
-    libc6 \
-    libc-bin \
-    libstdc++6 \
-    libgcc-s1 \
-    libjson-c5 \
-    libp11-kit0 \
-    libcurl4-openssl-dev \
-    libssl3 \
-    file \
-    jq \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    set -eux; \
+    apt-get update; \
+    apt-get install --no-install-recommends -y \
+      ca-certificates \
+      libc6 \
+      libc-bin \
+      libgcc-s1 \
+      libstdc++6 \
+      libjson-c5 \
+      libp11-kit0 \
+      libcurl4t64 \
+      libssl3 \
+      jq \
+      file \
+    ; \
+    rm -rf /var/lib/apt/lists/*
 
 # Add required libs for pkcs11 provider in separate layer for better caching
 # ignore symlinks.
