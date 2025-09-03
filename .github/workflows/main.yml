@@ -64,15 +64,24 @@ jobs:
             fulcio.sigstore.dev:443
             rekor.sigstore.dev:443
 
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
       - name: Cache APT packages
         uses: actions/cache@v3
         with:
           path: |
             /var/cache/apt/archives
             /var/lib/apt/lists
-          key: ${{ runner.os }}-${{ matrix.platform }}-apt-${{ hashFiles('**/Dockerfile') }}
+          key: ${{ runner.os }}-apt-${{ hashFiles('**/Dockerfile') }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.platform }}-apt-
             ${{ runner.os }}-apt-
 
       - name: Checkout certsquirt
@@ -84,16 +93,6 @@ jobs:
       - name: Read version from file
         id: get_version
         run: echo "VERSION=$(cat certsquirt/VERSION)" >> $GITHUB_ENV
-
-      - name: Cache Go modules
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('certsquirt/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -117,64 +116,22 @@ jobs:
               echo "VCPKG_TRIPLET=arm64-linux-dynamic" >> $GITHUB_ENV
               echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
               echo "CXX=aarch64-linux-gnu-g++" >> $GITHUB_ENV
-              # Set cross-compilation environment variables for vcpkg
-              echo "VCPKG_FORCE_SYSTEM_BINARIES=1" >> $GITHUB_ENV
-              echo "CMAKE_SYSTEM_NAME=Linux" >> $GITHUB_ENV
-              echo "CMAKE_SYSTEM_PROCESSOR=aarch64" >> $GITHUB_ENV
-              echo "CMAKE_C_COMPILER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-              echo "CMAKE_CXX_COMPILER=aarch64-linux-gnu-g++" >> $GITHUB_ENV
               ;;
           esac
 
       - name: Install cross-compilation tools for ARM64
         if: matrix.platform == 'linux/arm64'
         run: |
-          # Clean APT cache and force fresh repository data
-          sudo apt-get clean
-          sudo rm -rf /var/lib/apt/lists/*
-          
-          # Add ARM64 architecture
-          sudo dpkg --add-architecture arm64
-          
-          # Add ARM64 ports repository for cross-compilation packages
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ $(lsb_release -cs) main universe" | sudo tee /etc/apt/sources.list.d/arm64.list
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ $(lsb_release -cs)-updates main universe" | sudo tee -a /etc/apt/sources.list.d/arm64.list
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ $(lsb_release -cs)-security main universe" | sudo tee -a /etc/apt/sources.list.d/arm64.list
-          
-          # Force update with retry
-          for i in {1..3}; do
-            sudo apt-get update && break
-            echo "APT update attempt $i failed, retrying..."
-            sleep 5
-          done
-          
+          sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
           
-      - name: Install aws-sdk-cpp  
-        if: matrix.platform == 'linux/amd64'
-        id: vcpkg-amd64
+      - name: Install aws-sdk-cpp
+        id: vcpkg
         uses: johnwason/vcpkg-action@v6
         with:
           pkgs: aws-sdk-cpp[kms] aws-sdk-cpp[acm-pca]
           triplet: ${{ env.VCPKG_TRIPLET }}
           token: ${{ github.token }}
-
-      - name: Install aws-sdk-cpp (ARM64 cross-compile)
-        if: matrix.platform == 'linux/arm64'
-        id: vcpkg-arm64
-        run: |
-          # Clone vcpkg
-          git clone https://github.com/Microsoft/vcpkg.git
-          cd vcpkg
-          
-          # Bootstrap vcpkg
-          ./bootstrap-vcpkg.sh
-          
-          # Install packages for ARM64
-          export CC=aarch64-linux-gnu-gcc
-          export CXX=aarch64-linux-gnu-g++
-          export VCPKG_FORCE_SYSTEM_BINARIES=1
-          ./vcpkg install aws-sdk-cpp[kms] aws-sdk-cpp[acm-pca] --triplet=arm64-linux-dynamic
 
       - name: Build CertSquirt with version info
         run: |
@@ -209,25 +166,13 @@ jobs:
       - name: Install build dependencies
         if: steps.cache-aws-kms.outputs.cache-hit != 'true'
         run: |
+          sudo apt-get update
           if [ "${{ matrix.platform }}" = "linux/arm64" ]; then
-            # ARM64 architecture and repositories should already be configured
-            # Ensure fresh package lists before installation
-            for i in {1..3}; do
-              sudo apt-get update && break
-              echo "APT update attempt $i failed, retrying..."
-              sleep 5
-            done
-            
-            # Install ARM64 packages with retry logic
-            for i in {1..3}; do
-              sudo apt-get install -y build-essential libjson-c-dev:arm64 libp11-kit-dev:arm64 libcurl4-openssl-dev:arm64 && break
-              echo "Package installation attempt $i failed, retrying..."
-              sudo apt-get clean
-              sudo apt-get update
-              sleep 5
-            done
-          else
+            sudo apt-get install -y build-essential libjson-c-dev:arm64 libp11-kit-dev:arm64 libcurl4-openssl-dev:arm64
+            # Enable cross-architecture packages
+            sudo dpkg --add-architecture arm64
             sudo apt-get update
+          else
             sudo apt-get install -y build-essential libjson-c-dev libp11-kit-dev libcurl4-openssl-dev
           fi
 
