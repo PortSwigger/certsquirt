@@ -198,7 +198,12 @@ jobs:
         if: steps.cache-aws-kms.outputs.cache-hit != 'true'
         run: |
           cd aws-kms-pkcs11
-          AWS_SDK_PATH="${{ env.VCPKG_INSTALLED_PATH }}" make CC="${{ env.CC }}" CXX="${{ env.CXX }}"
+          if [ "${{ matrix.platform }}" = "linux/arm64" ]; then
+            # For ARM64 cross-compilation, specify the location of p11-kit headers
+            AWS_SDK_PATH="${{ env.VCPKG_INSTALLED_PATH }}" make CC="${{ env.CC }}" CXX="${{ env.CXX }}" PKCS11_INC="/usr/include/p11-kit-1"
+          else
+            AWS_SDK_PATH="${{ env.VCPKG_INSTALLED_PATH }}" make CC="${{ env.CC }}" CXX="${{ env.CXX }}"
+          fi
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
