@@ -170,9 +170,13 @@ jobs:
           if [ "${{ matrix.platform }}" = "linux/arm64" ]; then
             # Enable cross-architecture packages
             sudo dpkg --add-architecture arm64
+            # Restrict existing repositories to amd64 only
+            sudo sed -i 's/^deb /deb [arch=amd64] /' /etc/apt/sources.list
+            sudo sed -i 's/^deb-src /deb-src [arch=amd64] /' /etc/apt/sources.list
             # Add ARM64 repository for packages
             echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ $(lsb_release -cs) main universe" | sudo tee /etc/apt/sources.list.d/arm64.list
             echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ $(lsb_release -cs)-updates main universe" | sudo tee -a /etc/apt/sources.list.d/arm64.list
+            echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ $(lsb_release -cs)-security main universe" | sudo tee -a /etc/apt/sources.list.d/arm64.list
             sudo apt-get update
             sudo apt-get install -y build-essential libjson-c-dev:arm64 libp11-kit-dev:arm64 libcurl4-openssl-dev:arm64
           else
