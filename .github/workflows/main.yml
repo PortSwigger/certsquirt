@@ -171,6 +171,10 @@ jobs:
             # Enable cross-architecture packages FIRST
             sudo dpkg --add-architecture arm64
             
+            # Restrict main repositories to amd64 only (prevents ARM64 404 errors)
+            sudo sed -i 's/^deb /deb [arch=amd64] /' /etc/apt/sources.list
+            sudo sed -i 's/^deb-src /deb-src [arch=amd64] /' /etc/apt/sources.list
+            
             # Add ARM64 repository (ports.ubuntu.com hosts ARM64 packages)
             echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ $(lsb_release -cs) main universe" | sudo tee /etc/apt/sources.list.d/arm64.list
             echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ $(lsb_release -cs)-updates main universe" | sudo tee -a /etc/apt/sources.list.d/arm64.list
