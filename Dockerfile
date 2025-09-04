@@ -1,4 +1,4 @@
-FROM ubuntu:latest
+FROM debian:12-slim
 
 # Noninteractive to keep apt quiet in CI
 ENV DEBIAN_FRONTEND=noninteractive
@@ -17,7 +17,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       libstdc++6 \
       libjson-c5 \
       libp11-kit0 \
-      libcurl4t64 \
+      libcurl4 \
       libssl3 \
       jq \
       file \
