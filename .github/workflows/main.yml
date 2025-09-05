@@ -222,7 +222,7 @@ jobs:
               PKCS11_INC="-I/usr/include/p11-kit-1/p11-kit" \
               PKCS11_MOD_PATH="/usr/lib/aarch64-linux-gnu/pkcs11" \
               JSON_C_INC="-I/usr/include/json-c" \
-              LDFLAGS="-L${{ env.VCPKG_INSTALLED_PATH }}/lib"
+              LDFLAGS="-L${{ env.VCPKG_INSTALLED_PATH }}/lib -L/usr/lib/aarch64-linux-gnu"
           else
             AWS_SDK_PATH="${{ env.VCPKG_INSTALLED_PATH }}" make CC="${{ env.CC }}" CXX="${{ env.CXX }}"
           fi
