@@ -199,11 +199,11 @@ jobs:
         run: |
           cd aws-kms-pkcs11
           if [ "${{ matrix.platform }}" = "linux/arm64" ]; then
-            # For ARM64 cross-compilation, specify all required library paths
+            # For ARM64 cross-compilation, specify all required library paths with -I flags
             AWS_SDK_PATH="${{ env.VCPKG_INSTALLED_PATH }}" make CC="${{ env.CC }}" CXX="${{ env.CXX }}" \
-              PKCS11_INC="/usr/include/p11-kit-1" \
+              PKCS11_INC="-I/usr/include/p11-kit-1" \
               PKCS11_MOD_PATH="/usr/lib/aarch64-linux-gnu/pkcs11" \
-              JSON_C_INC="/usr/include/json-c"
+              JSON_C_INC="-I/usr/include/json-c"
           else
             AWS_SDK_PATH="${{ env.VCPKG_INSTALLED_PATH }}" make CC="${{ env.CC }}" CXX="${{ env.CXX }}"
           fi
