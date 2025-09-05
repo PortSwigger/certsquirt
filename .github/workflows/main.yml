@@ -199,13 +199,10 @@ jobs:
         run: |
           cd aws-kms-pkcs11
           if [ "${{ matrix.platform }}" = "linux/arm64" ]; then
-            # Debug: Check where pkcs11 headers are actually located
-            find /usr/include -name "pkcs11.h" 2>/dev/null || echo "pkcs11.h not found in /usr/include"
-            find /usr/include -name "json.h" 2>/dev/null || echo "json.h not found in /usr/include"
-            dpkg -L libp11-kit-dev:arm64 | grep "\.h$" | head -10
-            # For ARM64 cross-compilation, specify all required library paths with -I flags
+            # For ARM64 cross-compilation, specify all required library paths with correct -I flags
+            # pkcs11.h is in /usr/include/p11-kit-1/p11-kit/pkcs11.h
             AWS_SDK_PATH="${{ env.VCPKG_INSTALLED_PATH }}" make CC="${{ env.CC }}" CXX="${{ env.CXX }}" \
-              PKCS11_INC="-I/usr/include/p11-kit-1" \
+              PKCS11_INC="-I/usr/include/p11-kit-1/p11-kit" \
               PKCS11_MOD_PATH="/usr/lib/aarch64-linux-gnu/pkcs11" \
               JSON_C_INC="-I/usr/include/json-c"
           else
