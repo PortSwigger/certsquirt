@@ -215,12 +215,14 @@ jobs:
             # Add proper library path and cross-compilation flags
             export PKG_CONFIG_PATH="${{ env.VCPKG_INSTALLED_PATH }}/lib/pkgconfig:$PKG_CONFIG_PATH"
             export PKG_CONFIG_SYSROOT_DIR="/"
+            # Fix the hardcoded g++ in Makefile by replacing it with our cross-compiler
+            sed -i 's/g++ -shared/$(CXX) -shared/' Makefile
+            sed -i '1i CXX ?= g++' Makefile
             AWS_SDK_PATH="${{ env.VCPKG_INSTALLED_PATH }}" make CC="${{ env.CC }}" CXX="${{ env.CXX }}" \
               PKCS11_INC="-I/usr/include/p11-kit-1/p11-kit" \
               PKCS11_MOD_PATH="/usr/lib/aarch64-linux-gnu/pkcs11" \
               JSON_C_INC="-I/usr/include/json-c" \
-              LDFLAGS="-L${{ env.VCPKG_INSTALLED_PATH }}/lib" \
-              LD="aarch64-linux-gnu-ld"
+              LDFLAGS="-L${{ env.VCPKG_INSTALLED_PATH }}/lib"
           else
             AWS_SDK_PATH="${{ env.VCPKG_INSTALLED_PATH }}" make CC="${{ env.CC }}" CXX="${{ env.CXX }}"
           fi
