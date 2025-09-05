@@ -199,10 +199,17 @@ jobs:
         run: |
           cd aws-kms-pkcs11
           if [ "${{ matrix.platform }}" = "linux/arm64" ]; then
-            # Debug: Check the architecture of vcpkg libraries
+            # Debug: Check the architecture of vcpkg libraries and toolchain
             echo "Checking vcpkg library architectures:"
             file ${{ env.VCPKG_INSTALLED_PATH }}/lib/libaws-cpp-sdk-core.so || echo "File not found"
-            ls -la ${{ env.VCPKG_INSTALLED_PATH }}/lib/ | head -5
+            echo "Checking compiler and linker:"
+            which ${{ env.CC }} && ${{ env.CC }} --version
+            which ${{ env.CXX }} && ${{ env.CXX }} --version
+            echo "Testing simple compilation:"
+            echo 'int main(){return 0;}' > test.c
+            ${{ env.CC }} -c test.c -o test.o
+            file test.o
+            rm -f test.c test.o
             # For ARM64 cross-compilation, specify all required library paths with correct -I flags
             # pkcs11.h is in /usr/include/p11-kit-1/p11-kit/pkcs11.h
             # Add proper library path and cross-compilation flags
