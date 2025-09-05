@@ -178,7 +178,7 @@ jobs:
             echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ $(lsb_release -cs)-updates main universe" | sudo tee -a /etc/apt/sources.list.d/arm64.list
             echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ $(lsb_release -cs)-security main universe" | sudo tee -a /etc/apt/sources.list.d/arm64.list
             sudo apt-get update
-            sudo apt-get install -y build-essential libjson-c-dev:arm64 libp11-kit-dev:arm64 libcurl4-openssl-dev:arm64
+            sudo apt-get install -y build-essential libjson-c-dev:arm64 libp11-kit-dev:arm64 libcurl4-openssl-dev:arm64 libssl-dev:arm64 zlib1g-dev:arm64
           else
             sudo apt-get install -y build-essential libjson-c-dev libp11-kit-dev libcurl4-openssl-dev
           fi
