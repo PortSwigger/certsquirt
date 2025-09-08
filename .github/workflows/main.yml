@@ -289,7 +289,7 @@ jobs:
           name: certsquirt-${{ env.PLATFORM_TAG }}
           path: certsquirt-${{ env.PLATFORM_TAG }}
     outputs:
-      version: ${{ steps.get_version.outputs.version }}
+      version: ${{ env.VERSION }}
 
   release:
     needs: build
@@ -310,10 +310,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Download all binary artifacts
+      - name: Download binary artifacts
         uses: actions/download-artifact@v4
         with:
           path: ./artifacts
+          pattern: certsquirt-*
+          merge-multiple: false
 
       - name: Move artifacts to root
         run: |
