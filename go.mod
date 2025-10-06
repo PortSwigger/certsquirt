@@ -1,11 +1,9 @@
 module github.com/PortSwigger/certsquirt
 
-go 1.24.0
-
-toolchain go1.24.1
+go 1.25.1
 
 require (
-	github.com/ThalesGroup/crypto11 v1.4.1
+	github.com/ThalesGroup/crypto11 v1.6.0
 	github.com/aws/aws-sdk-go v1.55.8
 	github.com/pkg/errors v0.9.1
 	github.com/pquerna/otp v1.5.0
